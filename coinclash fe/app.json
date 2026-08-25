@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "CoinClash",
+    "slug": "coincash",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "coincash",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0B14"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.coinclash.app"
+    },
+    "android": {
+      "backgroundColor": "#0B0B14",
+      "package": "com.coinclash.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
