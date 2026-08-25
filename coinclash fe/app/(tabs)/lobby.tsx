@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TIERS = [
+  { stake: 0, tier: 'Practice', waiting: Math.floor(Math.random() * 10) + 5 },
   { stake: 10, tier: 'Rookie', waiting: Math.floor(Math.random() * 8) + 3 },
   { stake: 25, tier: 'Amateur', waiting: Math.floor(Math.random() * 6) + 2 },
   { stake: 50, tier: 'Skilled', waiting: Math.floor(Math.random() * 5) + 2 },

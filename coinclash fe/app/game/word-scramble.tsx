@@ -69,8 +69,8 @@ export default function WordScrambleScreen() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const startTime = useRef(Date.now());
 
-  const aiCorrect = useRef(Math.floor(ROUNDS * (0.6 + Math.random() * 0.3)));
-  const aiTime = useRef(ROUNDS * (1500 + Math.random() * 1000));
+  const aiCorrect = useRef(Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
+  const aiTime = useRef(ROUNDS * (1100 + Math.random() * 800));
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = rounds[roundIdx];

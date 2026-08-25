@@ -17,14 +17,16 @@ export function useGameFinish(stake: number, gameType = 'play') {
       if (hasFinished.current) return;
       hasFinished.current = true;
 
-      const prize = won ? stake * 2 - 5 : 0;
+      const prize = won ? (stake > 0 ? stake * 2 - 5 : 0) : 0;
 
       // Immediate local update for responsive UI
-      if (won) {
-        addCoins(prize);
-        addTransaction({ type: 'win', amount: prize, description: `Won ${stake}-coin match` });
-      } else {
-        addTransaction({ type: 'loss', amount: stake, description: `Lost ${stake}-coin match` });
+      if (stake > 0) {
+        if (won) {
+          addCoins(prize);
+          addTransaction({ type: 'win', amount: prize, description: `Won ${stake}-coin match` });
+        } else {
+          addTransaction({ type: 'loss', amount: stake, description: `Lost ${stake}-coin match` });
+        }
       }
       addGameResult({ stake, won, playerTime: playerVal, opponentTime: aiVal, prize });
 

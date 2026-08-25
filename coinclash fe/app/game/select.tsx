@@ -84,8 +84,10 @@ export default function SelectScreen() {
 
   const handleSelect = (gameId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    deductCoins(stake);
-    addTransaction({ type: 'stake', amount: stake, description: `Entered ${stake}-coin match` });
+    if (stake > 0) {
+      deductCoins(stake);
+      addTransaction({ type: 'stake', amount: stake, description: `Entered ${stake}-coin match` });
+    }
     router.push({ pathname: `/game/${gameId}` as any, params: { stake: String(stake) } });
   };
 
@@ -135,7 +137,9 @@ export default function SelectScreen() {
         </View>
         <View style={styles.pill}>
           <MaterialCommunityIcons name="circle" size={12} color={colors.gold} />
-          <Text style={styles.pillText}>Stake: {stake} coins per match</Text>
+          <Text style={styles.pillText}>
+            {stake === 0 ? 'Practice Mode (Free)' : `Stake: ${stake} coins per match`}
+          </Text>
         </View>
       </LinearGradient>
 

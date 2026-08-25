@@ -53,8 +53,8 @@ export default function ColorMatchScreen() {
   const roundStartTime = useRef(Date.now());
 
   // Pre-compute AI result
-  const aiCorrect = useRef(Math.floor(ROUNDS * (0.7 + Math.random() * 0.25)));
-  const aiTime = useRef(ROUNDS * (600 + Math.random() * 400));
+  const aiCorrect = useRef(Math.floor(ROUNDS * (0.85 + Math.random() * 0.155)));
+  const aiTime = useRef(ROUNDS * (450 + Math.random() * 300));
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = rounds.current[roundIdx];

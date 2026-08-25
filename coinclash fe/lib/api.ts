@@ -177,6 +177,7 @@ export interface LeaderboardData {
   type: string;
   board: LeaderboardEntry[];
   myRank: number | null;
+  poolAmount?: number;
 }
 
 export interface AdminStats {

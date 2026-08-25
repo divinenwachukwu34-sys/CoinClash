@@ -51,8 +51,8 @@ export default function MathDuelScreen() {
   const [feedback, setFeedback] = useState<number | null>(null); // tapped option
   const startTime = useRef(Date.now());
 
-  const aiCorrect = useRef(Math.floor(ROUNDS * (0.6 + Math.random() * 0.3)));
-  const aiTime = useRef(ROUNDS * (1000 + Math.random() * 500));
+  const aiCorrect = useRef(Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
+  const aiTime = useRef(ROUNDS * (750 + Math.random() * 400));
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = problems.current[roundIdx];

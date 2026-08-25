@@ -33,5 +33,6 @@ async def get_leaderboard(type: str = "weekly", current_user: dict = Depends(get
         return {
             "type": type,
             "board": board,
-            "myRank": my_rank
+            "myRank": my_rank,
+            "poolAmount": 50000
         }

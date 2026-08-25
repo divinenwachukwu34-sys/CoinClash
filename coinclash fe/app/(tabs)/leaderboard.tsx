@@ -21,6 +21,7 @@ export default function LeaderboardScreen() {
   const [tab, setTab] = useState<'weekly' | 'alltime'>('weekly');
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
+  const [poolAmount, setPoolAmount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -31,6 +32,7 @@ export default function LeaderboardScreen() {
       const data = await api.getLeaderboard(tab, token);
       setBoard(data.board);
       setMyRank(data.myRank);
+      if (data.poolAmount) setPoolAmount(data.poolAmount);
     } catch {}
     setLoading(false);
     setRefreshing(false);
@@ -57,13 +59,22 @@ export default function LeaderboardScreen() {
           ))}
         </View>
 
-        {/* My rank */}
-        {myRank && (
-          <View style={s.myRankCard}>
-            <Ionicons name="trophy" size={16} color={colors.gold} />
-            <Text style={s.myRankText}>Your rank: #{myRank}</Text>
-          </View>
-        )}
+        {/* Rank and Pool info row */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          {myRank && (
+            <View style={s.myRankCard}>
+              <Ionicons name="trophy" size={16} color={colors.gold} />
+              <Text style={s.myRankText}>Your rank: #{myRank}</Text>
+            </View>
+          )}
+
+          {poolAmount > 0 && tab === 'weekly' && (
+            <View style={[s.myRankCard, { borderColor: colors.accent + '40', backgroundColor: colors.accent + '10' }]}>
+              <Ionicons name="gift" size={16} color={colors.accent} />
+              <Text style={[s.myRankText, { color: colors.accent }]}>Prize Pool: {poolAmount.toLocaleString()} 🪙</Text>
+            </View>
+          )}
+        </View>
       </LinearGradient>
 
       {loading ? (

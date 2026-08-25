@@ -55,21 +55,23 @@ export default function PlayScreen() {
       if (hasFinished.current) return;
       hasFinished.current = true;
 
-      const prize = won ? stake * 2 - 5 : 0;
+      const prize = won ? (stake > 0 ? stake * 2 - 5 : 0) : 0;
 
-      if (won) {
-        addCoins(prize);
-        addTransaction({
-          type: 'win',
-          amount: prize,
-          description: `Won ${stake}-coin match`,
-        });
-      } else {
-        addTransaction({
-          type: 'loss',
-          amount: stake,
-          description: `Lost ${stake}-coin match`,
-        });
+      if (stake > 0) {
+        if (won) {
+          addCoins(prize);
+          addTransaction({
+            type: 'win',
+            amount: prize,
+            description: `Won ${stake}-coin match`,
+          });
+        } else {
+          addTransaction({
+            type: 'loss',
+            amount: stake,
+            description: `Lost ${stake}-coin match`,
+          });
+        }
       }
 
       addGameResult({ stake, won, playerTime, opponentTime, prize });
@@ -138,7 +140,7 @@ export default function PlayScreen() {
     if (count <= 0) {
       // Transition to ready after a short pause
       const t = setTimeout(() => {
-        const oppMs = Math.round(300 + Math.random() * 420); // 300–720ms
+        const oppMs = Math.round(200 + Math.random() * 300); // 300–720ms
         opponentTimeRef.current = oppMs;
         readyTimeRef.current = Date.now();
         setPhase('ready');
