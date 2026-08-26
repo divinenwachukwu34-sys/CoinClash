@@ -19,6 +19,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: 'gamecontroller', selected: 'gamecontroller.fill' }} />
         <Label>Lobby</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tournaments">
+        <Icon sf={{ default: 'flag', selected: 'flag.fill' }} />
+        <Label>Tourneys</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="leaderboard">
         <Icon sf={{ default: 'trophy', selected: 'trophy.fill' }} />
         <Label>Ranks</Label>
@@ -80,6 +84,15 @@ function ClassicTabLayout() {
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="gamecontroller" tintColor={color} size={24} />
                   : <Ionicons name="game-controller-outline" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="tournaments"
+        options={{
+          title: 'Tourneys',
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="flag" tintColor={color} size={24} />
+                  : <Ionicons name="flag-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

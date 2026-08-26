@@ -77,18 +77,19 @@ export default function SelectScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ stake: string }>();
-  const stake = parseInt(params.stake ?? '10', 10);
+  const params = useLocalSearchParams<{ stake?: string; tournamentId?: string }>();
+  const stake = parseInt(params.stake ?? '0', 10);
+  const tournamentId = params.tournamentId;
   const { deductCoins, addTransaction } = useWallet();
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   const handleSelect = (gameId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (stake > 0) {
+    if (stake > 0 && !tournamentId) {
       deductCoins(stake);
       addTransaction({ type: 'stake', amount: stake, description: `Entered ${stake}-coin match` });
     }
-    router.push({ pathname: `/game/${gameId}` as any, params: { stake: String(stake) } });
+    router.push({ pathname: `/game/${gameId}` as any, params: { stake: String(stake), tournamentId } });
   };
 
   const styles = StyleSheet.create({
@@ -112,10 +113,10 @@ export default function SelectScreen() {
       flexDirection: 'row', alignItems: 'center', gap: 5,
       backgroundColor: colors.card, borderRadius: 20,
       paddingHorizontal: 12, paddingVertical: 6,
-      borderWidth: 1, borderColor: colors.gold + '40',
+      borderWidth: 1, borderColor: tournamentId ? '#9333EA40' : colors.gold + '40',
       alignSelf: 'center',
     },
-    pillText: { fontSize: 14, fontWeight: '600' as const, color: colors.gold, fontFamily: 'Inter_600SemiBold' },
+    pillText: { fontSize: 14, fontWeight: '600' as const, color: tournamentId ? '#D946EF' : colors.gold, fontFamily: 'Inter_600SemiBold' },
     scrollContent: { padding: 16, paddingBottom: 60, gap: 10 },
     row: { flexDirection: 'row', gap: 10 },
   });
@@ -136,9 +137,9 @@ export default function SelectScreen() {
           <View style={{ width: 36 }} />
         </View>
         <View style={styles.pill}>
-          <MaterialCommunityIcons name="circle" size={12} color={colors.gold} />
+          <MaterialCommunityIcons name="circle" size={12} color={tournamentId ? '#D946EF' : colors.gold} />
           <Text style={styles.pillText}>
-            {stake === 0 ? 'Practice Mode (Free)' : `Stake: ${stake} coins per match`}
+            {tournamentId ? 'Tournament Match' : stake === 0 ? 'Practice Mode (Free)' : `Stake: ${stake} coins per match`}
           </Text>
         </View>
       </LinearGradient>

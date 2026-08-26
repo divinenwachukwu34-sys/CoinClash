@@ -64,3 +64,25 @@ CREATE TABLE IF NOT EXISTS owner_transfers (
     status VARCHAR(50) DEFAULT 'success',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS tournaments (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    entry_fee INTEGER NOT NULL,
+    prize_pool INTEGER NOT NULL,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    status VARCHAR(50) DEFAULT 'upcoming',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tournament_players (
+    tournament_id INTEGER REFERENCES tournaments(id),
+    user_id INTEGER REFERENCES users(id),
+    lives INTEGER DEFAULT 3,
+    score INTEGER DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'active',
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tournament_id, user_id)
+);

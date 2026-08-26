@@ -100,6 +100,16 @@ export const api = {
   getProfile: (token: string) => request<ProfileData>('/profile', {}, token),
   updateProfile: (username: string, token: string) =>
     request('/profile', { method: 'PATCH', body: JSON.stringify({ username }) }, token),
+  // Tournament
+  getTournaments: (token: string) => request<Tournament[]>('/tournaments', {}, token),
+  joinTournament: (id: number, token: string) => 
+    request<{ success: boolean; newBalance: number }>(`/tournaments/${id}/join`, { method: 'POST' }, token),
+  getTournamentDetails: (id: number, token: string) =>
+    request<TournamentDetails>(`/tournaments/${id}`, {}, token),
+  submitTournamentMatch: (id: number, won: boolean, gameType: string, playerScore: number, opponentScore: number, token: string) =>
+    request<TournamentSubmitResult>(`/tournaments/${id}/submit`, {
+      method: 'POST', body: JSON.stringify({ won, gameType, playerScore, opponentScore })
+    }, token),
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -207,4 +217,39 @@ export interface ProfileData {
   coinBalance: number;
   stats: { wins: number; losses: number; total: number; winRate: number; bestTime: number | null };
   recentTransactions: any[];
+}
+
+export interface Tournament {
+  id: number;
+  title: string;
+  type: string;
+  entryFee: number;
+  prizePool: number;
+  startTime: string;
+  endTime: string;
+  status: string;
+  participants: number;
+}
+
+export interface TournamentPlayer {
+  rank: number;
+  userId: number;
+  username: string;
+  score: number;
+  lives: number;
+  status: string;
+  isMe?: boolean;
+}
+
+export interface TournamentDetails extends Tournament {
+  board: TournamentPlayer[];
+  myStatus: TournamentPlayer | null;
+}
+
+export interface TournamentSubmitResult {
+  success: boolean;
+  score: number;
+  lives: number;
+  status: string;
+  eliminated: boolean;
 }

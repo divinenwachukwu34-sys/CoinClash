@@ -27,11 +27,14 @@ export default function ResultScreen() {
     unit: string;
   }>();
 
+  const tournamentId = params.tournamentId;
+  const isTourney = !!tournamentId;
+  const isPractice = !isTourney && stake === 0;
+
   const won = params.won === '1';
   const playerVal = parseInt(params.playerTime ?? '0', 10);
   const opponentVal = parseInt(params.opponentTime ?? '0', 10);
   const prize = parseInt(params.prize ?? '0', 10);
-  const stake = parseInt(params.stake ?? '10', 10);
   const unit = params.unit ?? 'ms';
   const netChange = won ? prize - stake : -stake;
 
@@ -63,7 +66,9 @@ export default function ResultScreen() {
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
-  const bgColors: [string, string] = won ? ['#052E16', colors.background] : ['#1C0A0A', colors.background];
+  const bgColors: [string, string] = isTourney 
+    ? (won ? ['#3B0764', colors.background] : ['#4C1D95', colors.background])
+    : (won ? ['#052E16', colors.background] : ['#1C0A0A', colors.background]);
 
   // Flexible display based on unit
   const formatVal = (v: number) => {
@@ -99,7 +104,7 @@ export default function ResultScreen() {
     iconCircle: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
     resultTitle: { fontSize: 36, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
     resultSub: { fontSize: 16, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-    netChange: { fontSize: 28, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+    netChange: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', marginTop: 4 },
     stats: { margin: 20, backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 16 },
     statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     statLabel: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
@@ -128,11 +133,24 @@ export default function ResultScreen() {
             {won ? 'You Won!' : 'You Lost'}
           </Text>
           <Text style={styles.resultSub}>{getSubtitle()}</Text>
+          
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <MaterialCommunityIcons name="circle" size={16} color={won ? colors.accent : colors.destructive} />
-            <Text style={[styles.netChange, { color: won ? colors.accent : colors.destructive }]}>
-              {netChange > 0 ? '+' : ''}{netChange} coins
-            </Text>
+            {isTourney ? (
+              <Text style={[styles.netChange, { color: won ? colors.accent : colors.destructive }]}>
+                {won ? '+1 Tournament Score' : '-1 Tournament Life'}
+              </Text>
+            ) : isPractice ? (
+              <Text style={[styles.netChange, { color: colors.mutedForeground }]}>
+                Practice Match
+              </Text>
+            ) : (
+              <>
+                <MaterialCommunityIcons name="circle" size={16} color={won ? colors.accent : colors.destructive} />
+                <Text style={[styles.netChange, { color: won ? colors.accent : colors.destructive }]}>
+                  {netChange > 0 ? '+' : ''}{netChange} coins
+                </Text>
+              </>
+            )}
           </View>
         </Animated.View>
 
@@ -152,54 +170,59 @@ export default function ResultScreen() {
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Stake</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <MaterialCommunityIcons name="circle" size={11} color={colors.gold} />
-              <Text style={styles.statVal}>{stake} coins</Text>
-            </View>
-          </View>
-
-          {won && (
+          {!isTourney && !isPractice && (
             <>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Prize pool</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <MaterialCommunityIcons name="circle" size={11} color={colors.gold} />
-                  <Text style={styles.statVal}>{stake * 2} coins</Text>
-                </View>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>App fee</Text>
-                <Text style={[styles.statVal, { color: colors.mutedForeground }]}>–5 coins</Text>
-              </View>
               <View style={styles.divider} />
               <View style={styles.statRow}>
-                <Text style={[styles.statLabel, { color: colors.accent }]}>You receive</Text>
+                <Text style={styles.statLabel}>Stake</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <MaterialCommunityIcons name="circle" size={11} color={colors.accent} />
-                  <Text style={[styles.statVal, { color: colors.accent }]}>{prize} coins</Text>
+                  <MaterialCommunityIcons name="circle" size={11} color={colors.gold} />
+                  <Text style={styles.statVal}>{stake} coins</Text>
                 </View>
               </View>
+
+              {won && (
+                <>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Prize pool</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <MaterialCommunityIcons name="circle" size={11} color={colors.gold} />
+                      <Text style={styles.statVal}>{stake * 2} coins</Text>
+                    </View>
+                  </View>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>App fee</Text>
+                    <Text style={[styles.statVal, { color: colors.mutedForeground }]}>–5 coins</Text>
+                  </View>
+                  <View style={styles.divider} />
+                  <View style={styles.statRow}>
+                    <Text style={[styles.statLabel, { color: colors.accent }]}>You receive</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <MaterialCommunityIcons name="circle" size={11} color={colors.accent} />
+                      <Text style={[styles.statVal, { color: colors.accent }]}>{prize} coins</Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </>
           )}
         </Animated.View>
 
         <View style={styles.buttons}>
           <View style={styles.primaryBtn}>
-            <Pressable onPress={() => router.replace('/(tabs)/lobby')}>
-              <LinearGradient colors={[colors.primary, '#4F1ADE']} style={styles.primaryBtnInner}>
-                <Ionicons name="game-controller" size={18} color="#fff" />
-                <Text style={styles.primaryBtnText}>Play Again</Text>
+            <Pressable onPress={() => router.replace(isTourney ? `/tournament/${tournamentId}` : '/(tabs)/lobby')}>
+              <LinearGradient colors={isTourney ? ['#9333EA', '#4F1ADE'] : [colors.primary, '#4F1ADE']} style={styles.primaryBtnInner}>
+                <Ionicons name={isTourney ? 'flag' : 'game-controller'} size={18} color="#fff" />
+                <Text style={styles.primaryBtnText}>{isTourney ? 'Return to Tournament' : 'Play Again'}</Text>
               </LinearGradient>
             </Pressable>
           </View>
-          <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/(tabs)')}>
-            <Ionicons name="home-outline" size={16} color={colors.mutedForeground} />
-            <Text style={styles.secondaryBtnText}>Go Home</Text>
-          </Pressable>
+          {!isTourney && (
+            <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/(tabs)')}>
+              <Ionicons name="home-outline" size={16} color={colors.mutedForeground} />
+              <Text style={styles.secondaryBtnText}>Go Home</Text>
+            </Pressable>
+          )}
         </View>
       </LinearGradient>
     </View>
