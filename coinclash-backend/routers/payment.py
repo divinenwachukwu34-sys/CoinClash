@@ -72,6 +72,22 @@ async def verify_payment(data: VerifyRequest, current_user: dict = Depends(get_c
         await database.add_coins_to_user(tx["user_id"], coins, data.reference, amount_ngn)
         await database.update_transaction_status(data.reference, "success")
         
+        # Check for referral bonus
+        async with database.pool.acquire() as conn:
+            ref = await conn.fetchrow('SELECT * FROM referrals WHERE referred_id = $1 AND bonus_paid = FALSE', tx["user_id"])
+            if ref:
+                # Pay 25 to referrer, 20 to referred
+                referrer_id = ref['referrer_id']
+                referred_id = ref['referred_id']
+                
+                await conn.execute('UPDATE users SET coin_balance = coin_balance + 25 WHERE id = $1', referrer_id)
+                await conn.execute("INSERT INTO transactions (user_id, type, amount_coins, description) VALUES ($1, 'bonus', 25, 'Referral Bonus (Friend Deposited)')", referrer_id)
+                
+                await conn.execute('UPDATE users SET coin_balance = coin_balance + 20 WHERE id = $1', referred_id)
+                await conn.execute("INSERT INTO transactions (user_id, type, amount_coins, description) VALUES ($1, 'bonus', 20, 'Referral Welcome Bonus')", referred_id)
+                
+                await conn.execute('UPDATE referrals SET bonus_paid = TRUE WHERE id = $1', ref['id'])
+
         user = await database.get_user_by_id(current_user["userId"])
         return {"coins": coins, "newBalance": user["coin_balance"]}
     else:
@@ -98,4 +114,17 @@ async def paystack_webhook(request: Request):
             coins = int(amount_ngn * (35 / 100))
             await database.add_coins_to_user(tx["user_id"], coins, reference, amount_ngn)
             await database.update_transaction_status(reference, "success")
+            
+            # Check for referral bonus
+            async with database.pool.acquire() as conn:
+                ref = await conn.fetchrow('SELECT * FROM referrals WHERE referred_id = $1 AND bonus_paid = FALSE', tx["user_id"])
+                if ref:
+                    referrer_id = ref['referrer_id']
+                    referred_id = ref['referred_id']
+                    await conn.execute('UPDATE users SET coin_balance = coin_balance + 25 WHERE id = $1', referrer_id)
+                    await conn.execute("INSERT INTO transactions (user_id, type, amount_coins, description) VALUES ($1, 'bonus', 25, 'Referral Bonus (Friend Deposited)')", referrer_id)
+                    await conn.execute('UPDATE users SET coin_balance = coin_balance + 20 WHERE id = $1', referred_id)
+                    await conn.execute("INSERT INTO transactions (user_id, type, amount_coins, description) VALUES ($1, 'bonus', 20, 'Referral Welcome Bonus')", referred_id)
+                    await conn.execute('UPDATE referrals SET bonus_paid = TRUE WHERE id = $1', ref['id'])
+
     return {"status": "success"}

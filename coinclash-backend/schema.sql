@@ -86,3 +86,11 @@ CREATE TABLE IF NOT EXISTS tournament_players (
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (tournament_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS referrals (
+    id SERIAL PRIMARY KEY,
+    referrer_id INTEGER REFERENCES users(id),
+    referred_id INTEGER REFERENCES users(id),
+    bonus_paid BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

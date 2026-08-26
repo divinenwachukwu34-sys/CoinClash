@@ -130,7 +130,7 @@ export default function ProfileScreen() {
 
   const handleShareCode = async () => {
     if (!referralCode) return;
-    const msg = `Join me on CoinClash and get 20 free coins! Use my referral code: ${referralCode} when signing up 🎮\n\nDownload now and let's compete!`;
+    const msg = `🎮 Let's play CoinClash together!\n\nUse my invite link to sign up and we both get FREE bonus coins to start playing:\nhttps://coinclash.app/signup?ref=${referralCode}\n\nDownload now and let's compete!`;
     try {
       await Share.share({ message: msg, title: 'Join me on CoinClash' });
     } catch {

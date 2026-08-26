@@ -2,8 +2,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { Link, useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,12 +22,13 @@ export default function SignupScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ ref?: string }>();
   const { signup } = useAuth();
 
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [referralCode, setReferralCode] = useState('');
+  const [referralCode, setReferralCode] = useState(params.ref ?? '');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -178,7 +179,7 @@ export default function SignupScreen() {
                     maxLength={8}
                   />
                 </View>
-                <Text style={s.referralHint}>Have a friend's code? They earn 25 coins when you make your first deposit.</Text>
+                <Text style={s.referralHint}>Have a friend's code? You get 20 bonus coins and they get 25 coins when you make your first deposit.</Text>
               </View>
 
               <View style={s.signupBtn}>
