@@ -243,6 +243,72 @@ async def submit_tournament_match(
                 "eliminated": new_lives <= 0
             }
 
+@router.post("/{tournament_id}/finish")
+async def finish_tournament(tournament_id: int):
+    # In a real app, this would be protected by an admin dependency
+    async with database.pool.acquire() as conn:
+        async with conn.transaction():
+            t = await conn.fetchrow('SELECT * FROM tournaments WHERE id = $1', tournament_id)
+            if not t:
+                raise HTTPException(status_code=404, detail="Tournament not found")
+            if t['status'] == 'completed':
+                raise HTTPException(status_code=400, detail="Tournament already completed")
+                
+            # Get players ranked
+            players = await conn.fetch('''
+                SELECT user_id, score, lives 
+                FROM tournament_players 
+                WHERE tournament_id = $1
+                ORDER BY score DESC, lives DESC, joined_at ASC
+            ''', tournament_id)
+            
+            prize_pool = t['prize_pool']
+            app_fee_percentage = 0.20 # 20% to the app
+            app_fee = int(prize_pool * app_fee_percentage)
+            player_pool = prize_pool - app_fee
+            
+            # The prompt requested top 20/100 people get a share. We'll distribute to up to top 20 players.
+            num_winners = min(20, len(players))
+            
+            if num_winners > 0:
+                # Weights for the top 20 ranks (adds up to ~100)
+                weights = [30, 15, 10, 7, 5, 4, 3, 3, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1]
+                actual_weights = weights[:num_winners]
+                total_weight = sum(actual_weights)
+                
+                for i in range(num_winners):
+                    user_id = players[i]['user_id']
+                    rank = i + 1
+                    share_percentage = actual_weights[i] / total_weight
+                    prize_amount = int(player_pool * share_percentage)
+                    
+                    if prize_amount > 0:
+                        # Give prize to user
+                        await conn.execute('''
+                            UPDATE users SET coin_balance = coin_balance + $1 WHERE id = $2
+                        ''', prize_amount, user_id)
+                        
+                        # Record transaction
+                        await conn.execute('''
+                            INSERT INTO transactions (user_id, type, amount_coins, description)
+                            VALUES ($1, 'win', $2, $3)
+                        ''', user_id, prize_amount, f"Tournament Rank #{rank} Prize: {t['title']}")
+                        
+                        # Record app fee in platform_fees? Since it's tournament fee, maybe we can just record owner_transfer
+                        # Or just leave it implicit since the coins are absorbed by the system.
+                        # For platform_fees table, we need a game_result_id, which we don't have. So we'll skip platform_fees table insertion, the coins are simply removed from circulation (which is the app profit).
+            
+            # Update status
+            await conn.execute("UPDATE tournaments SET status = 'completed' WHERE id = $1", tournament_id)
+            
+            return {
+                "success": True, 
+                "message": f"Tournament {tournament_id} completed", 
+                "winners": num_winners, 
+                "appProfit": app_fee, 
+                "distributed": player_pool
+            }
+
 @router.websocket("/ws/{tournament_id}")
 async def websocket_tournament(websocket: WebSocket, tournament_id: int):
     await websocket.accept()
@@ -251,7 +317,6 @@ async def websocket_tournament(websocket: WebSocket, tournament_id: int):
     active_connections[tournament_id].append(websocket)
     try:
         while True:
-            # Keep alive ping pong
             data = await websocket.receive_text()
     except WebSocketDisconnect:
         if tournament_id in active_connections and websocket in active_connections[tournament_id]:
