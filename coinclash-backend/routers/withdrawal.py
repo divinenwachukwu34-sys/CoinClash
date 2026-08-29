@@ -2,12 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import database
 from middleware.auth import get_current_user
-import httpx
+from services.paystack import PaystackClient
 import os
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
-PAYSTACK_SECRET = os.getenv('PAYSTACK_SECRET_KEY')
 
 class WithdrawRequest(BaseModel):
     amount_coins: int
@@ -28,7 +30,15 @@ async def request_withdrawal(data: WithdrawRequest, current_user: dict = Depends
         
     reference = str(uuid.uuid4())
     
-    # Mocking withdrawal since we don't have a real withdrawal table in our schema right now
+    # Fetch bank account recipient code
+    banks = await database.get_bank_accounts(current_user["userId"])
+    bank = next((b for b in banks if b["id"] == data.bank_account_id), None)
+    if not bank or not bank.get("recipient_code"):
+        # Rollback coins
+        await database.add_coins_to_user(current_user["userId"], data.amount_coins, reference, amount_ngn)
+        raise HTTPException(status_code=400, detail="Invalid bank account")
+    
+    # Create pending transaction
     await database.create_pending_transaction(
         user_id=current_user["userId"],
         type="withdrawal",
@@ -37,17 +47,46 @@ async def request_withdrawal(data: WithdrawRequest, current_user: dict = Depends
         description=f"Withdrew {data.amount_coins} coins (₦{amount_ngn})"
     )
     
-    # Mark as success automatically for now
-    await database.update_transaction_status(reference, "success")
+    # Initiate transfer via Paystack
+    try:
+        transfer_result = await PaystackClient.initiate_transfer(amount_ngn, bank["recipient_code"], reference)
         
-    return {
-        "success": True, 
-        "newBalance": new_balance,
-        "amountNgn": amount_ngn,
-        "reference": reference,
-        "message": "Withdrawal processed successfully",
-        "requiresOtp": False
-    }
+        status = transfer_result.get("status")
+        if status == "success":
+            await database.update_transaction_status(reference, "success")
+            return {
+                "success": True, 
+                "newBalance": new_balance,
+                "amountNgn": amount_ngn,
+                "reference": reference,
+                "message": "Withdrawal processed successfully",
+                "requiresOtp": False
+            }
+        elif status == "otp":
+            # Real implementation would need to track transfer_code for OTP validation
+            return {
+                "success": False,
+                "requiresOtp": True,
+                "newBalance": new_balance,
+                "withdrawalId": bank["id"],  # Just for placeholder compatibility
+                "message": "OTP required for transfer"
+            }
+        else:
+            # Pending or queued
+            return {
+                "success": False,
+                "queued": True,
+                "newBalance": new_balance,
+                "amountNgn": amount_ngn,
+                "message": "Withdrawal queued"
+            }
+    except Exception as e:
+        logger.error(f"Transfer failed: {e}")
+        # Mark as failed in DB, but realistically we should refund if it actually failed on Paystack side.
+        # For safety, let's refund if it fails immediately
+        await database.update_transaction_status(reference, "failed")
+        await database.add_coins_to_user(current_user["userId"], data.amount_coins, f"Refund {reference}", amount_ngn)
+        raise HTTPException(status_code=400, detail=f"Transfer failed: {e}")
 
 @router.post("/finalize")
 async def finalize_withdrawal(data: FinalizeRequest, current_user: dict = Depends(get_current_user)):

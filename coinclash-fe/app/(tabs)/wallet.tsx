@@ -58,6 +58,11 @@ export default function WalletScreen() {
   const [otpWithdrawalId, setOtpWithdrawalId] = useState<number | null>(null);
   const [otpLoading, setOtpLoading] = useState(false);
 
+  // ── Gift state ────────────────────────────────────────────────────────────
+  const [giftUsername, setGiftUsername] = useState('');
+  const [giftAmount, setGiftAmount] = useState('');
+  const [giftLoading, setGiftLoading] = useState(false);
+
   const [activeModal, setActiveModal] = useState<Modal_>('none');
 
   const closeModal = () => {
@@ -221,6 +226,33 @@ export default function WalletScreen() {
     setOtpLoading(false);
   };
 
+  // ── Gift submit ────────────────────────────────────────────────────────────
+  const handleGift = async () => {
+    if (!token || !giftUsername || !giftAmount) return;
+    const amount = parseInt(giftAmount, 10);
+    if (!amount || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid coin amount.');
+      return;
+    }
+    if (amount > coins) {
+      Alert.alert('Insufficient Balance', 'You do not have enough coins to gift this amount.');
+      return;
+    }
+    setGiftLoading(true);
+    try {
+      const { message, newBalance } = await api.giftCoins(giftUsername, amount, token);
+      syncFromServer(newBalance);
+      addTransaction({ type: 'withdrawal', amount: -amount, description: `Gifted to ${giftUsername}` });
+      Alert.alert('Gift Sent! 🎁', message);
+      setGiftUsername('');
+      setGiftAmount('');
+      await refreshUser();
+    } catch (err: any) {
+      Alert.alert('Gift Failed', err.message);
+    }
+    setGiftLoading(false);
+  };
+
   // ── retry queued ───────────────────────────────────────────────────────────
   const handleRetryQueued = async () => {
     if (!token) return;
@@ -312,6 +344,28 @@ export default function WalletScreen() {
           </Text>
         </View>
 
+        {/* ── Direct Bank Transfer (DVA) ────────────────────────────── */}
+        {user?.reservedAccountNumber && (
+          <View>
+            <Text style={s.sectionTitle}>Direct Bank Transfer</Text>
+            <View style={s.dvaCard}>
+              <View style={s.dvaRow}>
+                <Text style={s.dvaLabel}>Bank Name</Text>
+                <Text style={s.dvaValue}>{user.reservedBankName}</Text>
+              </View>
+              <View style={s.dvaRow}>
+                <Text style={s.dvaLabel}>Account Number</Text>
+                <Text style={s.dvaValue}>{user.reservedAccountNumber}</Text>
+              </View>
+              <View style={s.dvaRow}>
+                <Text style={s.dvaLabel}>Account Name</Text>
+                <Text style={s.dvaValue}>{user.reservedAccountName}</Text>
+              </View>
+              <Text style={s.dvaNote}>Transfer to this account to automatically fund your wallet. Funds will be converted to coins.</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── Queued withdrawals notice ────────────────────────────── */}
         {pendingWithdrawals.length > 0 && (
           <View style={s.queuedCard}>
@@ -381,6 +435,25 @@ export default function WalletScreen() {
               </View>
             </View>
           )}
+        </View>
+
+        {/* ── Gift Coins ──────────────────────────────────────────────── */}
+        <View>
+          <Text style={s.sectionTitle}>Gift Coins</Text>
+          <View style={s.giftCard}>
+            <TextInput style={s.mInput} placeholder="Recipient Username"
+              placeholderTextColor={colors.mutedForeground} value={giftUsername}
+              onChangeText={setGiftUsername} autoCapitalize="none" />
+            <TextInput style={s.mInput} placeholder="Amount of Coins"
+              placeholderTextColor={colors.mutedForeground} value={giftAmount}
+              onChangeText={setGiftAmount} keyboardType="numeric" />
+            <Pressable style={s.mBtn} onPress={handleGift} disabled={giftLoading}>
+              <LinearGradient colors={[colors.accent, '#059669']} style={s.mBtnInner}>
+                {giftLoading ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.mBtnText}>Send Gift 🎁</Text>}
+              </LinearGradient>
+            </Pressable>
+          </View>
         </View>
 
         {/* ── Transaction history ──────────────────────────────────── */}
@@ -576,6 +649,14 @@ function makeStyles(colors: any, topPad: number) {
     retryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 10 },
     retryBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
     psLink: { textAlign: 'center', color: colors.primary, fontFamily: 'Inter_500Medium', fontSize: 13 },
+
+    dvaCard: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12 },
+    dvaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    dvaLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
+    dvaValue: { fontSize: 14, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+    dvaNote: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 4, lineHeight: 18 },
+
+    giftCard: { gap: 12 },
 
     bankCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
     bankIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.primary + '20', alignItems: 'center', justifyContent: 'center' },

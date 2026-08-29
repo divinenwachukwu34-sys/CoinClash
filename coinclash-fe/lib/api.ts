@@ -43,6 +43,9 @@ export const api = {
       '/payment/verify', { method: 'POST', body: JSON.stringify({ reference }) }, token),
   getDepositTiers: () =>
     request<{ amount_ngn: number; coins: number; bonus: number; total: number }[]>('/payment/tiers'),
+  giftCoins: (recipient_username: string, amount_coins: number, token: string) =>
+    request<{ success: boolean; message: string; newBalance: number }>(
+      '/gift', { method: 'POST', body: JSON.stringify({ recipient_username, amount_coins }) }, token),
 
   // Banks
   getBanks: (token: string) => request<{ name: string; code: string }[]>('/banks/list', {}, token),
@@ -119,6 +122,9 @@ export interface User {
   email: string;
   username: string;
   coinBalance: number;
+  reservedBankName?: string;
+  reservedAccountNumber?: string;
+  reservedAccountName?: string;
 }
 
 export interface BankAccount {
@@ -215,6 +221,9 @@ export interface ProfileData {
   email: string;
   username: string;
   coinBalance: number;
+  reservedBankName?: string;
+  reservedAccountNumber?: string;
+  reservedAccountName?: string;
   stats: { wins: number; losses: number; total: number; winRate: number; bestTime: number | null };
   recentTransactions: any[];
 }

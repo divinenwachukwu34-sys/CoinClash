@@ -5,6 +5,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 import database
 from middleware.auth import get_current_user
+from services.paystack import PaystackClient
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 JWT_SECRET = os.getenv('JWT_SECRET', 'fallback_secret_do_not_use_in_prod')
@@ -28,6 +32,27 @@ async def signup(data: RegisterRequest):
     password_hash = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     user = await database.create_user(data.email, data.username, password_hash)
     
+    # Create Paystack customer and DVA
+    try:
+        # Use username as a placeholder for names since Paystack might require them for DVA creation
+        customer = await PaystackClient.create_customer(
+            email=data.email, 
+            first_name=data.username, 
+            last_name="CoinClash User"
+        )
+        dva = await PaystackClient.create_dedicated_account(customer["customer_code"])
+        
+        await database.update_user_reserved_account(
+            user["id"], 
+            customer["customer_code"], 
+            dva["bank"]["name"], 
+            dva["account_number"], 
+            dva["account_name"]
+        )
+    except Exception as e:
+        logger.error(f"Failed to provision DVA on signup for {data.email}: {e}")
+        # Non-blocking error, user is still created successfully
+
     token = jwt.encode({"userId": user["id"], "email": user["email"]}, JWT_SECRET, algorithm="HS256")
     return {"token": token, "user": {"id": user["id"], "email": user["email"], "username": user["username"], "coinBalance": user["coin_balance"]}}
 
@@ -48,4 +73,12 @@ async def me(current_user: dict = Depends(get_current_user)):
     user = await database.get_user_by_id(current_user["userId"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"id": user["id"], "email": user["email"], "username": user["username"], "coinBalance": user["coin_balance"]}
+    return {
+        "id": user["id"], 
+        "email": user["email"], 
+        "username": user["username"], 
+        "coinBalance": user["coin_balance"],
+        "reservedBankName": user.get("reserved_bank_name"),
+        "reservedAccountNumber": user.get("reserved_account_number"),
+        "reservedAccountName": user.get("reserved_account_name")
+    }

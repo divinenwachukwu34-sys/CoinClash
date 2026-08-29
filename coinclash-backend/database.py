@@ -17,6 +17,15 @@ async def init_db():
         schema = f.read()
     async with pool.acquire() as conn:
         await conn.execute(schema)
+        
+        # Migrations for reserved accounts
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS paystack_customer_code VARCHAR(255)")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_bank_name VARCHAR(255)")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_account_number VARCHAR(50)")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_account_name VARCHAR(255)")
+        except Exception as e:
+            print(f"Migration error: {e}")
 
 async def close_db():
     global pool
@@ -33,6 +42,11 @@ async def get_user_by_email(email: str) -> Optional[dict]:
         row = await conn.fetchrow('SELECT * FROM users WHERE email = $1', email)
         return dict(row) if row else None
 
+async def get_user_by_username(username: str) -> Optional[dict]:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT * FROM users WHERE username = $1', username)
+        return dict(row) if row else None
+
 async def create_user(email: str, username: str, password_hash: str) -> dict:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -40,6 +54,15 @@ async def create_user(email: str, username: str, password_hash: str) -> dict:
             email, username, password_hash
         )
         return dict(row)
+
+async def update_user_reserved_account(user_id: int, customer_code: str, bank_name: str, account_number: str, account_name: str):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            '''UPDATE users 
+               SET paystack_customer_code = $1, reserved_bank_name = $2, reserved_account_number = $3, reserved_account_name = $4
+               WHERE id = $5''',
+            customer_code, bank_name, account_number, account_name, user_id
+        )
 
 async def add_coins_to_user(user_id: int, coins: int, reference: str, amount_ngn: float) -> int:
     async with pool.acquire() as conn:

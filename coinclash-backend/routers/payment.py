@@ -106,12 +106,26 @@ async def get_tiers():
 async def paystack_webhook(request: Request):
     data = await request.json()
     if data.get("event") == "charge.success":
-        reference = data["data"]["reference"]
-        amount_kobo = data["data"]["amount"]
+        payload = data["data"]
+        reference = payload["reference"]
+        amount_kobo = payload["amount"]
         amount_ngn = amount_kobo / 100.0
+        coins = int(amount_ngn * (35 / 100))
+        
+        # Check if it was a direct transfer to DVA
+        if payload.get("channel") == "dedicated_nuban":
+            # Find user by email
+            email = payload.get("customer", {}).get("email")
+            user = await database.get_user_by_email(email) if email else None
+            if user:
+                # Add coins and create a deposit transaction directly
+                await database.add_coins_to_user(user["id"], coins, reference, amount_ngn)
+                # Note: No referral bonus for DVA transfers right now unless we want to add it.
+                return {"status": "success"}
+        
+        # Otherwise, standard web checkout flow
         tx = await database.get_transaction_by_ref(reference)
         if tx and tx["status"] == "pending":
-            coins = int(amount_ngn * (35 / 100))
             await database.add_coins_to_user(tx["user_id"], coins, reference, amount_ngn)
             await database.update_transaction_status(reference, "success")
             

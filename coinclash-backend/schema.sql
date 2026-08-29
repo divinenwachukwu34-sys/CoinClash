@@ -4,6 +4,10 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     coin_balance INTEGER DEFAULT 0,
+    paystack_customer_code VARCHAR(255),
+    reserved_bank_name VARCHAR(255),
+    reserved_account_number VARCHAR(50),
+    reserved_account_name VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
