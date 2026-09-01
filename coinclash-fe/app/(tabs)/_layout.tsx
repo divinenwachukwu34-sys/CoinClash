@@ -3,43 +3,9 @@ import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
-import { SymbolView } from 'expo-symbols';
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="lobby">
-        <Icon sf={{ default: 'gamecontroller', selected: 'gamecontroller.fill' }} />
-        <Label>Lobby</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="tournaments">
-        <Icon sf={{ default: 'flag', selected: 'flag.fill' }} />
-        <Label>Tourneys</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="leaderboard">
-        <Icon sf={{ default: 'trophy', selected: 'trophy.fill' }} />
-        <Label>Ranks</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="wallet">
-        <Icon sf={{ default: 'creditcard', selected: 'creditcard.fill' }} />
-        <Label>Wallet</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <Label>Profile</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
+export default function TabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -58,7 +24,7 @@ function ClassicTabLayout() {
           borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
-          ...(isWeb ? { height: 84, maxWidth: 480, width: '100%', alignSelf: 'center' } : {}),
+          ...(isWeb ? { height: 64, maxWidth: 480, width: '100%', alignSelf: 'center' } : {}),
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -72,63 +38,44 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="house" tintColor={color} size={24} />
-                  : <Feather name="home" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="lobby"
         options={{
           title: 'Lobby',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="gamecontroller" tintColor={color} size={24} />
-                  : <Ionicons name="game-controller-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="game-controller-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="tournaments"
         options={{
           title: 'Tourneys',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="flag" tintColor={color} size={24} />
-                  : <Ionicons name="flag-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="flag-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
           title: 'Ranks',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="trophy" tintColor={color} size={24} />
-                  : <Ionicons name="trophy-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="trophy-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="wallet"
         options={{
           title: 'Wallet',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="creditcard" tintColor={color} size={24} />
-                  : <Feather name="credit-card" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="credit-card" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="person" tintColor={color} size={24} />
-                  : <Feather name="user" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
         }}
       />
     </Tabs>
   );
-}
-
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
 }

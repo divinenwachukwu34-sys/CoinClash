@@ -31,10 +31,12 @@ export default function SignupScreen() {
   const [referralCode, setReferralCode] = useState(params.ref ?? '');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSignup = async () => {
+    setErrorMsg('');
     if (!email.trim() || !username.trim() || !password) {
-      Alert.alert('Missing fields', 'Please fill in all fields.');
+      setErrorMsg('Please fill in all fields.');
       return;
     }
     setLoading(true);
@@ -42,7 +44,7 @@ export default function SignupScreen() {
       await signup(email.trim(), username.trim(), password, referralCode.trim() || undefined);
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Signup failed', err.message ?? 'Please try again.');
+      setErrorMsg(err.message ?? 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,6 +65,8 @@ export default function SignupScreen() {
     },
     title: { fontSize: 28, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 24 },
+    errorBox: { backgroundColor: 'rgba(255,0,0,0.1)', padding: 12, borderRadius: 8, marginBottom: 16 },
+    errorText: { color: 'red', fontSize: 14, textAlign: 'center' as const, fontFamily: 'Inter_500Medium' },
     card: {
       backgroundColor: colors.card, borderRadius: 20,
       borderWidth: 1, borderColor: colors.border, padding: 24, gap: 16,
@@ -106,6 +110,11 @@ export default function SignupScreen() {
             <Text style={s.subtitle}>Join CoinClash and start winning coins</Text>
 
             <View style={s.card}>
+              {errorMsg ? (
+                <View style={s.errorBox}>
+                  <Text style={s.errorText}>{errorMsg}</Text>
+                </View>
+              ) : null}
               <View style={s.bonusCard}>
                 <Ionicons name="gift" size={20} color={colors.accent} />
                 <Text style={s.bonusText}>Get 100 free coins when you sign up!</Text>
