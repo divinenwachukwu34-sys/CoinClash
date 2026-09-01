@@ -27,7 +27,7 @@ export default function WalletScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { coins, transactions, addTransaction, syncFromServer } = useWallet();
-  const { token, refreshUser } = useAuth();
+  const { token, user, refreshUser } = useAuth();
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   // ── deposit state ──────────────────────────────────────────────────────────

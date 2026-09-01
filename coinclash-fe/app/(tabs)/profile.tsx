@@ -385,6 +385,14 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
           </Pressable>
 
+          {user?.email === 'admin@coinclash.com' && (
+            <Pressable style={s.settingsItem} onPress={() => router.push('/admin')}>
+              <Ionicons name="shield-outline" size={18} color={colors.primary} />
+              <Text style={[s.settingsText, { color: colors.primary }]}>Admin Panel</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            </Pressable>
+          )}
+
           <Pressable style={[s.settingsItem, s.logoutItem]} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={18} color={colors.destructive} />
             <Text style={[s.settingsText, s.logoutText]}>Log out</Text>
