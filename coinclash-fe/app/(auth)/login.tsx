@@ -6,6 +6,7 @@ import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -31,25 +32,16 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setErrorMsg('');
-
-    // Client-side validation with correction hints
-    if (!email.trim()) {
-      setErrorMsg('Please enter your email address.');
-      return;
-    }
+    if (!email.trim()) { setErrorMsg('Please enter your email address.'); return; }
     if (!email.includes('@') || !email.includes('.')) {
-      setErrorMsg('That doesn\'t look like a valid email. Make sure it has "@" and a domain (e.g. you@gmail.com).');
+      setErrorMsg('That doesn\'t look like a valid email — e.g. you@gmail.com');
       return;
     }
-    if (!password) {
-      setErrorMsg('Please enter your password.');
-      return;
-    }
+    if (!password) { setErrorMsg('Please enter your password.'); return; }
     if (password.length < 6) {
       setErrorMsg('Password must be at least 6 characters. Check that you typed it correctly.');
       return;
     }
-
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
@@ -61,141 +53,241 @@ export default function LoginScreen() {
     }
   };
 
-  const s = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    gradient: {
-      flex: 1,
-      paddingTop: Platform.OS === 'web' ? 80 : insets.top + 20,
-      paddingBottom: insets.bottom + 20,
-    },
-    scroll: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 40 },
-    logoArea: { alignItems: 'center', marginBottom: 40, gap: 12 },
-    logoCircle: {
-      width: 72, height: 72, borderRadius: 20,
-      backgroundColor: colors.primary + '30',
-      alignItems: 'center', justifyContent: 'center',
-      borderWidth: 2, borderColor: colors.primary + '60',
-    },
-    appName: { fontSize: 32, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
-    tagline: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-    card: {
-      backgroundColor: colors.card, borderRadius: 20,
-      borderWidth: 1, borderColor: colors.border, padding: 24, gap: 16,
-    },
-    cardTitle: { fontSize: 20, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-    errorBox: { backgroundColor: 'rgba(255,59,48,0.12)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-    errorText: { flex: 1, color: '#FF3B30', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 19 },
-    label: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 6 },
-    inputRow: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: colors.background, borderRadius: 12,
-      borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14,
-    },
-    input: { flex: 1, paddingVertical: 14, fontSize: 15, color: colors.foreground, fontFamily: 'Inter_400Regular' },
-    loginBtn: { borderRadius: 14, overflow: 'hidden' as const, marginTop: 4 },
-    loginBtnInner: { paddingVertical: 16, alignItems: 'center' as const },
-    loginBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#fff', fontFamily: 'Inter_700Bold' },
-    divider: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    divLine: { flex: 1, height: 1, backgroundColor: colors.border },
-    divText: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-    signupRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 8 },
-    signupText: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-    signupLink: { fontSize: 14, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
-  });
-
   return (
-    <View style={s.container}>
-      <LinearGradient colors={['#0D0A2A', colors.background]} style={s.gradient}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <View style={styles.container}>
+      {/* Deep dark gradient background */}
+      <LinearGradient
+        colors={['#060414', '#0D0829', '#110C35']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {/* Gold glow orb behind logo */}
+      <View style={styles.glowOrb} />
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingTop: Platform.OS === 'web' ? 60 : insets.top + 20, paddingBottom: insets.bottom + 32 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-            <View style={s.logoArea}>
-              <View style={s.logoCircle}>
-                <Ionicons name="game-controller" size={32} color={colors.primary} />
+          {/* ── Logo area ─────────────────────────── */}
+          <View style={styles.logoArea}>
+            <View style={styles.logoRing}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.appName}>CoinClash</Text>
+            <View style={styles.taglineRow}>
+              <View style={styles.taglineDot} />
+              <Text style={styles.tagline}>Play Smart. Win Real.</Text>
+              <View style={styles.taglineDot} />
+            </View>
+          </View>
+
+          {/* ── Card ──────────────────────────────── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Welcome back 👋</Text>
+            <Text style={styles.cardSub}>Log in to continue your winning streak</Text>
+
+            {/* Error */}
+            {errorMsg ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={15} color="#FF3B30" style={{ marginTop: 1 }} />
+                <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
-              <Text style={s.appName}>CoinClash</Text>
-              <Text style={s.tagline}>Play. Win. Earn.</Text>
+            ) : null}
+
+            {/* Email */}
+            <View style={styles.fieldWrap}>
+              <View style={styles.fieldIcon}>
+                <Ionicons name="mail-outline" size={17} color="#A78BFA" />
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="Email address"
+                placeholderTextColor="#4B4870"
+                value={email}
+                onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
             </View>
 
-            <View style={s.card}>
-              <Text style={s.cardTitle}>Welcome back</Text>
-
-              {/* Inline error message */}
-              {errorMsg ? (
-                <View style={s.errorBox}>
-                  <Ionicons name="alert-circle" size={16} color="#FF3B30" style={{ marginTop: 2 }} />
-                  <Text style={s.errorText}>{errorMsg}</Text>
-                </View>
-              ) : null}
-
-              <View>
-                <Text style={s.label}>Email address</Text>
-                <View style={s.inputRow}>
-                  <TextInput
-                    style={s.input}
-                    placeholder="you@email.com"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={email}
-                    onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
+            {/* Password */}
+            <View style={styles.fieldWrap}>
+              <View style={styles.fieldIcon}>
+                <Ionicons name="lock-closed-outline" size={17} color="#A78BFA" />
               </View>
-
-              <View>
-                <Text style={s.label}>Password</Text>
-                <View style={s.inputRow}>
-                  <TextInput
-                    style={s.input}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={password}
-                    onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <Pressable onPress={() => setShowPassword((v) => !v)}>
-                    <Ionicons
-                      name={showPassword ? 'eye-off' : 'eye'}
-                      size={20}
-                      color={colors.mutedForeground}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={s.loginBtn}>
-                <Pressable onPress={handleLogin} disabled={loading}>
-                  <LinearGradient colors={[colors.primary, '#4F1ADE']} style={s.loginBtnInner}>
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={s.loginBtnText}>Log In</Text>
-                    )}
-                  </LinearGradient>
-                </Pressable>
-              </View>
-
-              <View style={s.divider}>
-                <View style={s.divLine} />
-                <Text style={s.divText}>or</Text>
-                <View style={s.divLine} />
-              </View>
-
-              <View style={s.signupRow}>
-                <Text style={s.signupText}>Don't have an account?</Text>
-                <Link href="/(auth)/signup" style={s.signupLink}>
-                  Sign up free
-                </Link>
-              </View>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Password"
+                placeholderTextColor="#4B4870"
+                value={password}
+                onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <Pressable onPress={() => setShowPassword(v => !v)} style={{ paddingHorizontal: 14 }}>
+                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#6B6890" />
+              </Pressable>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </LinearGradient>
+
+            {/* Login button */}
+            <Pressable onPress={handleLogin} disabled={loading} style={styles.loginBtnWrap}>
+              <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.loginBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {loading
+                  ? <ActivityIndicator color="#1a1230" />
+                  : <Text style={styles.loginBtnText}>Log In</Text>}
+              </LinearGradient>
+            </Pressable>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.divLine} />
+              <Text style={styles.divText}>Don't have an account?</Text>
+              <View style={styles.divLine} />
+            </View>
+
+            <Link href="/(auth)/signup" asChild>
+              <Pressable style={styles.signupBtn}>
+                <Text style={styles.signupBtnText}>Create Free Account</Text>
+              </Pressable>
+            </Link>
+          </View>
+
+          {/* Bottom badge */}
+          <View style={styles.badge}>
+            <Ionicons name="shield-checkmark-outline" size={13} color="#6B6890" />
+            <Text style={styles.badgeText}>Secured · Nigeria · Paystack Payments</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#060414' },
+  glowOrb: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: '#7C3AED',
+    opacity: 0.08,
+    top: -80,
+    alignSelf: 'center',
+  },
+  scroll: { flexGrow: 1, paddingHorizontal: 24 },
+  logoArea: { alignItems: 'center', marginBottom: 32, gap: 10 },
+  logoRing: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 1.5,
+    borderColor: '#F59E0B40',
+    backgroundColor: '#0D0829',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  logo: { width: 90, height: 90, borderRadius: 45 },
+  appName: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#F5F0FF',
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.5,
+  },
+  taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  taglineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F59E0B' },
+  tagline: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular', letterSpacing: 0.3 },
+
+  card: {
+    backgroundColor: '#110E2E',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#2A2550',
+    padding: 24,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  cardTitle: { fontSize: 22, fontWeight: '700', color: '#F5F0FF', fontFamily: 'Inter_700Bold' },
+  cardSub: { fontSize: 13, color: '#6B6890', fontFamily: 'Inter_400Regular', marginTop: -8, marginBottom: 4 },
+
+  errorBox: {
+    backgroundColor: 'rgba(255,59,48,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.3)',
+    borderRadius: 10,
+    padding: 11,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  errorText: { flex: 1, color: '#FF3B30', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
+
+  fieldWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D0A26',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2A2550',
+    overflow: 'hidden',
+  },
+  fieldIcon: {
+    width: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#2A2550',
+    paddingVertical: 14,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#F5F0FF',
+    fontFamily: 'Inter_400Regular',
+  },
+
+  loginBtnWrap: { borderRadius: 14, overflow: 'hidden', marginTop: 4 },
+  loginBtn: { paddingVertical: 16, alignItems: 'center', borderRadius: 14 },
+  loginBtnText: { fontSize: 16, fontWeight: '700', color: '#1a1230', fontFamily: 'Inter_700Bold', letterSpacing: 0.3 },
+
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  divLine: { flex: 1, height: 1, backgroundColor: '#1E1B40' },
+  divText: { fontSize: 12, color: '#4B4870', fontFamily: 'Inter_400Regular' },
+
+  signupBtn: {
+    borderWidth: 1,
+    borderColor: '#7C3AED60',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#7C3AED10',
+  },
+  signupBtnText: { fontSize: 15, fontWeight: '600', color: '#A78BFA', fontFamily: 'Inter_600SemiBold' },
+
+  badge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 24, marginBottom: 8 },
+  badgeText: { fontSize: 11, color: '#4B4870', fontFamily: 'Inter_400Regular' },
+});
