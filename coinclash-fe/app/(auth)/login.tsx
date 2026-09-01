@@ -6,7 +6,6 @@ import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -28,18 +27,35 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
+    setErrorMsg('');
+
+    // Client-side validation with correction hints
+    if (!email.trim()) {
+      setErrorMsg('Please enter your email address.');
       return;
     }
+    if (!email.includes('@') || !email.includes('.')) {
+      setErrorMsg('That doesn\'t look like a valid email. Make sure it has "@" and a domain (e.g. you@gmail.com).');
+      return;
+    }
+    if (!password) {
+      setErrorMsg('Please enter your password.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters. Check that you typed it correctly.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim().toLowerCase(), password);
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Login failed', err.message ?? 'Please check your credentials.');
+      setErrorMsg(err.message ?? 'Login failed. Please check your details and try again.');
     } finally {
       setLoading(false);
     }
@@ -67,6 +83,8 @@ export default function LoginScreen() {
       borderWidth: 1, borderColor: colors.border, padding: 24, gap: 16,
     },
     cardTitle: { fontSize: 20, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
+    errorBox: { backgroundColor: 'rgba(255,59,48,0.12)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+    errorText: { flex: 1, color: '#FF3B30', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 19 },
     label: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 6 },
     inputRow: {
       flexDirection: 'row', alignItems: 'center',
@@ -104,6 +122,14 @@ export default function LoginScreen() {
             <View style={s.card}>
               <Text style={s.cardTitle}>Welcome back</Text>
 
+              {/* Inline error message */}
+              {errorMsg ? (
+                <View style={s.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color="#FF3B30" style={{ marginTop: 2 }} />
+                  <Text style={s.errorText}>{errorMsg}</Text>
+                </View>
+              ) : null}
+
               <View>
                 <Text style={s.label}>Email address</Text>
                 <View style={s.inputRow}>
@@ -112,7 +138,7 @@ export default function LoginScreen() {
                     placeholder="you@email.com"
                     placeholderTextColor={colors.mutedForeground}
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -128,7 +154,7 @@ export default function LoginScreen() {
                     placeholder="••••••••"
                     placeholderTextColor={colors.mutedForeground}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                   />

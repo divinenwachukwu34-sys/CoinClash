@@ -35,16 +35,51 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     setErrorMsg('');
-    if (!email.trim() || !username.trim() || !password) {
-      setErrorMsg('Please fill in all fields.');
+
+    // Email validation
+    if (!email.trim()) {
+      setErrorMsg('Please enter your email address.');
       return;
     }
+    if (!email.includes('@') || !email.includes('.')) {
+      setErrorMsg('That doesn\'t look like a valid email. Make sure it has "@" and a domain (e.g. you@gmail.com).');
+      return;
+    }
+
+    // Username validation
+    if (!username.trim()) {
+      setErrorMsg('Please enter a username.');
+      return;
+    }
+    if (username.trim().length < 3) {
+      setErrorMsg('Username is too short — it must be at least 3 characters.');
+      return;
+    }
+    if (username.trim().length > 20) {
+      setErrorMsg('Username is too long — maximum 20 characters allowed.');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+      setErrorMsg('Username can only contain letters, numbers, and underscores — no spaces or symbols. Try something like Flash_King99.');
+      return;
+    }
+
+    // Password validation
+    if (!password) {
+      setErrorMsg('Please enter a password.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('Password is too short — it must be at least 6 characters long.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await signup(email.trim(), username.trim(), password, referralCode.trim() || undefined);
+      await signup(email.trim().toLowerCase(), username.trim(), password, referralCode.trim() || undefined);
       router.replace('/(tabs)');
     } catch (err: any) {
-      setErrorMsg(err.message ?? 'Please try again.');
+      setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -65,8 +100,8 @@ export default function SignupScreen() {
     },
     title: { fontSize: 28, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 24 },
-    errorBox: { backgroundColor: 'rgba(255,0,0,0.1)', padding: 12, borderRadius: 8, marginBottom: 16 },
-    errorText: { color: 'red', fontSize: 14, textAlign: 'center' as const, fontFamily: 'Inter_500Medium' },
+    errorBox: { backgroundColor: 'rgba(255,59,48,0.12)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row' as const, gap: 8, alignItems: 'flex-start' as const, marginBottom: 16 },
+    errorText: { flex: 1, color: '#FF3B30', fontSize: 13, lineHeight: 19, fontFamily: 'Inter_500Medium' },
     card: {
       backgroundColor: colors.card, borderRadius: 20,
       borderWidth: 1, borderColor: colors.border, padding: 24, gap: 16,
@@ -112,6 +147,7 @@ export default function SignupScreen() {
             <View style={s.card}>
               {errorMsg ? (
                 <View style={s.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color="#FF3B30" style={{ marginTop: 2 }} />
                   <Text style={s.errorText}>{errorMsg}</Text>
                 </View>
               ) : null}
@@ -128,7 +164,7 @@ export default function SignupScreen() {
                     placeholder="you@email.com"
                     placeholderTextColor={colors.mutedForeground}
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -144,7 +180,7 @@ export default function SignupScreen() {
                     placeholder="e.g. Flash_King99"
                     placeholderTextColor={colors.mutedForeground}
                     value={username}
-                    onChangeText={setUsername}
+                    onChangeText={(t) => { setUsername(t); setErrorMsg(''); }}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
@@ -160,7 +196,7 @@ export default function SignupScreen() {
                     placeholder="At least 6 characters"
                     placeholderTextColor={colors.mutedForeground}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                   />

@@ -46,6 +46,7 @@ export default function WalletScreen() {
   const [resolving, setResolving] = useState(false);
   const [savingBank, setSavingBank] = useState(false);
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
+  const [bankError, setBankError] = useState('');
 
   // ── withdrawal state ───────────────────────────────────────────────────────
   const [withdrawCoins, setWithdrawCoins] = useState('');
@@ -67,7 +68,7 @@ export default function WalletScreen() {
 
   const closeModal = () => {
     setActiveModal('none');
-    setBankSearch(''); setChosenBank(null); setAccountNumber(''); setResolvedName('');
+    setBankSearch(''); setChosenBank(null); setAccountNumber(''); setResolvedName(''); setBankError('');
     setWithdrawCoins(''); setOtpValue(''); setOtpWithdrawalId(null);
   };
 
@@ -148,23 +149,25 @@ export default function WalletScreen() {
 
   const handleResolveAccount = async () => {
     if (!chosenBank || accountNumber.length !== 10 || !token) return;
-    setResolving(true); setResolvedName('');
+    setResolving(true); setResolvedName(''); setBankError('');
     try {
       const { account_name } = await api.resolveAccount(accountNumber, chosenBank.code, token);
       setResolvedName(account_name);
-    } catch (err: any) { Alert.alert('Verification failed', err.message); }
+    } catch (err: any) {
+      setBankError(err.message ?? 'Could not verify this account. Make sure the account number is correct for the selected bank.');
+    }
     setResolving(false);
   };
 
   const handleSaveBank = async () => {
     if (!chosenBank || !resolvedName || !token) return;
-    setSavingBank(true);
+    setSavingBank(true); setBankError('');
     try {
       await api.addBankAccount({ bank_code: chosenBank.code, bank_name: chosenBank.name, account_number: accountNumber, account_name: resolvedName }, token);
       await fetchMyBanks();
       closeModal();
       Alert.alert('Bank account saved!', `${chosenBank.name} · ${resolvedName}`);
-    } catch (err: any) { Alert.alert('Error', err.message); }
+    } catch (err: any) { setBankError(err.message ?? 'Failed to save bank account. Please try again.'); }
     setSavingBank(false);
   };
 
@@ -544,6 +547,12 @@ export default function WalletScreen() {
               </>
             )}
             <Pressable style={s.cancelRow} onPress={closeModal}><Text style={s.cancelText}>Cancel</Text></Pressable>
+            {bankError ? (
+              <View style={{ backgroundColor: 'rgba(255,59,48,0.12)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 8 }}>
+                <Ionicons name="alert-circle" size={16} color="#FF3B30" style={{ marginTop: 2 }} />
+                <Text style={{ flex: 1, color: '#FF3B30', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 19 }}>{bankError}</Text>
+              </View>
+            ) : null}
             <View style={{ height: 24 }} />
           </ScrollView>
         </KeyboardAvoidingView>
