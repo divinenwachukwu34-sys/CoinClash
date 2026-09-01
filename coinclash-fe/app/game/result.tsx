@@ -25,10 +25,12 @@ export default function ResultScreen() {
     prize: string;
     stake: string;
     unit: string;
+    tournamentId: string;
   }>();
 
   const tournamentId = params.tournamentId;
   const isTourney = !!tournamentId;
+  const stake = parseInt(params.stake ?? '0', 10);
   const isPractice = !isTourney && stake === 0;
 
   const won = params.won === '1';
