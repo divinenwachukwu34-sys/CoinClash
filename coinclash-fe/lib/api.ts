@@ -21,7 +21,7 @@ async function request<T = any>(
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   let data: any;
   try { data = await res.json(); } catch { throw new ApiError(`Server error (${res.status})`); }
-  if (!res.ok) throw new ApiError(data?.error ?? `Request failed (${res.status})`, res.status);
+  if (!res.ok) throw new ApiError(data?.detail ?? data?.error ?? data?.message ?? `Request failed (${res.status})`, res.status);
   return data as T;
 }
 
