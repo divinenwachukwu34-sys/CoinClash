@@ -3,10 +3,9 @@ import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,6 +16,53 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Password rules
+const PWD_RULES = [
+  { key: 'length',  label: 'At least 8 characters',       test: (p: string) => p.length >= 8 },
+  { key: 'upper',   label: 'One uppercase letter (A–Z)',   test: (p: string) => /[A-Z]/.test(p) },
+  { key: 'number',  label: 'One number (0–9)',             test: (p: string) => /[0-9]/.test(p) },
+  { key: 'special', label: 'One special character (!@#$…)',test: (p: string) => /[^a-zA-Z0-9]/.test(p) },
+];
+
+function PasswordStrength({ password }: { password: string }) {
+  const passed = PWD_RULES.filter(r => r.test(password)).length;
+  const colors = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759'];
+  const labels = ['Weak', 'Fair', 'Good', 'Strong'];
+  const barColor = password.length === 0 ? '#444' : colors[passed - 1] ?? colors[0];
+  const label    = password.length === 0 ? '' : labels[passed - 1] ?? labels[0];
+
+  return (
+    <View style={{ marginTop: 10, gap: 8 }}>
+      {/* Strength bar */}
+      <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+        {[0,1,2,3].map(i => (
+          <View key={i} style={{
+            flex: 1, height: 4, borderRadius: 2,
+            backgroundColor: password.length > 0 && i < passed ? barColor : '#333',
+          }} />
+        ))}
+        {label ? <Text style={{ fontSize: 12, color: barColor, fontWeight: '600', marginLeft: 6, width: 48 }}>{label}</Text> : null}
+      </View>
+      {/* Individual rules */}
+      {PWD_RULES.map(rule => {
+        const ok = rule.test(password);
+        return (
+          <View key={rule.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons
+              name={ok ? 'checkmark-circle' : 'ellipse-outline'}
+              size={14}
+              color={ok ? '#34C759' : '#666'}
+            />
+            <Text style={{ fontSize: 12, color: ok ? '#34C759' : '#888', fontFamily: 'Inter_400Regular' }}>
+              {rule.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function SignupScreen() {
   const colors = useColors();
@@ -33,44 +79,33 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const pwdPassed = useMemo(() => PWD_RULES.filter(r => r.test(password)).length, [password]);
+  const passwordStrong = pwdPassed === PWD_RULES.length;
+
   const handleSignup = async () => {
     setErrorMsg('');
 
-    // Email validation
-    if (!email.trim()) {
-      setErrorMsg('Please enter your email address.');
-      return;
-    }
+    // Email
+    if (!email.trim()) { setErrorMsg('Please enter your email address.'); return; }
     if (!email.includes('@') || !email.includes('.')) {
-      setErrorMsg('That doesn\'t look like a valid email. Make sure it has "@" and a domain (e.g. you@gmail.com).');
+      setErrorMsg('That doesn\'t look like a valid email — e.g. you@gmail.com');
       return;
     }
 
-    // Username validation
-    if (!username.trim()) {
-      setErrorMsg('Please enter a username.');
-      return;
-    }
-    if (username.trim().length < 3) {
-      setErrorMsg('Username is too short — it must be at least 3 characters.');
-      return;
-    }
-    if (username.trim().length > 20) {
-      setErrorMsg('Username is too long — maximum 20 characters allowed.');
-      return;
-    }
+    // Username
+    if (!username.trim()) { setErrorMsg('Please enter a username.'); return; }
+    if (username.trim().length < 3) { setErrorMsg('Username must be at least 3 characters.'); return; }
+    if (username.trim().length > 20) { setErrorMsg('Username must be 20 characters or less.'); return; }
     if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
-      setErrorMsg('Username can only contain letters, numbers, and underscores — no spaces or symbols. Try something like Flash_King99.');
+      setErrorMsg('Username can only have letters, numbers and underscores — e.g. Flash_King99');
       return;
     }
 
-    // Password validation
-    if (!password) {
-      setErrorMsg('Please enter a password.');
-      return;
-    }
-    if (password.length < 6) {
-      setErrorMsg('Password is too short — it must be at least 6 characters long.');
+    // Password rules
+    if (!password) { setErrorMsg('Please enter a password.'); return; }
+    if (!passwordStrong) {
+      const missing = PWD_RULES.filter(r => !r.test(password)).map(r => r.label);
+      setErrorMsg('Password too weak. Missing: ' + missing.join(', ') + '.');
       return;
     }
 
@@ -100,7 +135,7 @@ export default function SignupScreen() {
     },
     title: { fontSize: 28, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
     subtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 24 },
-    errorBox: { backgroundColor: 'rgba(255,59,48,0.12)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row' as const, gap: 8, alignItems: 'flex-start' as const, marginBottom: 16 },
+    errorBox: { backgroundColor: 'rgba(255,59,48,0.12)', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row' as const, gap: 8, alignItems: 'flex-start' as const, marginBottom: 4 },
     errorText: { flex: 1, color: '#FF3B30', fontSize: 13, lineHeight: 19, fontFamily: 'Inter_500Medium' },
     card: {
       backgroundColor: colors.card, borderRadius: 20,
@@ -145,17 +180,20 @@ export default function SignupScreen() {
             <Text style={s.subtitle}>Join CoinClash and start winning coins</Text>
 
             <View style={s.card}>
+              {/* Error box */}
               {errorMsg ? (
                 <View style={s.errorBox}>
                   <Ionicons name="alert-circle" size={16} color="#FF3B30" style={{ marginTop: 2 }} />
                   <Text style={s.errorText}>{errorMsg}</Text>
                 </View>
               ) : null}
+
               <View style={s.bonusCard}>
                 <Ionicons name="gift" size={20} color={colors.accent} />
                 <Text style={s.bonusText}>Get 100 free coins when you sign up!</Text>
               </View>
 
+              {/* Email */}
               <View>
                 <Text style={s.label}>Email address</Text>
                 <View style={s.inputRow}>
@@ -172,6 +210,7 @@ export default function SignupScreen() {
                 </View>
               </View>
 
+              {/* Username */}
               <View>
                 <Text style={s.label}>Username</Text>
                 <View style={s.inputRow}>
@@ -188,12 +227,13 @@ export default function SignupScreen() {
                 <Text style={s.hint}>3–20 characters, letters, numbers and underscores only</Text>
               </View>
 
+              {/* Password */}
               <View>
                 <Text style={s.label}>Password</Text>
                 <View style={s.inputRow}>
                   <TextInput
                     style={s.input}
-                    placeholder="At least 6 characters"
+                    placeholder="Create a strong password"
                     placeholderTextColor={colors.mutedForeground}
                     value={password}
                     onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
@@ -208,8 +248,11 @@ export default function SignupScreen() {
                     />
                   </Pressable>
                 </View>
+                {/* Live strength meter — only shows once user starts typing */}
+                {password.length > 0 && <PasswordStrength password={password} />}
               </View>
 
+              {/* Referral */}
               <View>
                 <Text style={s.label}>Referral code (optional)</Text>
                 <View style={s.inputRow}>
@@ -224,7 +267,7 @@ export default function SignupScreen() {
                     maxLength={8}
                   />
                 </View>
-                <Text style={s.referralHint}>Have a friend's code? You get 20 bonus coins and they get 25 coins when you make your first deposit.</Text>
+                <Text style={s.referralHint}>Have a friend's code? You get 20 bonus coins and they get 25 when you make your first deposit.</Text>
               </View>
 
               <View style={s.signupBtn}>

@@ -35,9 +35,16 @@ async def signup(data: RegisterRequest):
     if not re.match(r'^[a-zA-Z0-9_]+$', data.username):
         raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, and underscores — no spaces or symbols (e.g. Flash_King99)")
 
-    # Validate password
-    if len(data.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+    # Validate password strength
+    import re as _re
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+    if not _re.search(r'[A-Z]', data.password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter (A–Z).")
+    if not _re.search(r'[0-9]', data.password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number (0–9).")
+    if not _re.search(r'[^a-zA-Z0-9]', data.password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character (e.g. !@#\$%^&*).")
 
     # Check if email already taken
     existing_email = await database.get_user_by_email(data.email)
