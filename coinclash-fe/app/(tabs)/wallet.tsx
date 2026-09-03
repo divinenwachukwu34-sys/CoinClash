@@ -59,10 +59,10 @@ export default function WalletScreen() {
   const [otpWithdrawalId, setOtpWithdrawalId] = useState<number | null>(null);
   const [otpLoading, setOtpLoading] = useState(false);
 
-  // ── Gift state ────────────────────────────────────────────────────────────
-  const [giftUsername, setGiftUsername] = useState('');
-  const [giftAmount, setGiftAmount] = useState('');
-  const [giftLoading, setGiftLoading] = useState(false);
+
+
+  // ── DVA state ─────────────────────────────────────────────────────────────
+  const [dvaLoading, setDvaLoading] = useState(false);
 
   const [activeModal, setActiveModal] = useState<Modal_>('none');
 
@@ -135,6 +135,20 @@ export default function WalletScreen() {
   const handleManualVerify = async () => {
     if (!pendingRef || !token) return;
     await verifyPayment(pendingRef.reference, pendingRef.coins);
+  };
+
+  // ── DVA creation ───────────────────────────────────────────────────────────
+  const handleCreateDva = async () => {
+    if (!token) return;
+    setDvaLoading(true);
+    try {
+      await api.createReservedAccount(token);
+      await refreshUser();
+      Alert.alert('Success', 'Your reserved account has been created! 🎉');
+    } catch (err: any) {
+      Alert.alert('Failed to generate account', err.message);
+    }
+    setDvaLoading(false);
   };
 
   // ── add bank ───────────────────────────────────────────────────────────────
@@ -229,32 +243,7 @@ export default function WalletScreen() {
     setOtpLoading(false);
   };
 
-  // ── Gift submit ────────────────────────────────────────────────────────────
-  const handleGift = async () => {
-    if (!token || !giftUsername || !giftAmount) return;
-    const amount = parseInt(giftAmount, 10);
-    if (!amount || amount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid coin amount.');
-      return;
-    }
-    if (amount > coins) {
-      Alert.alert('Insufficient Balance', 'You do not have enough coins to gift this amount.');
-      return;
-    }
-    setGiftLoading(true);
-    try {
-      const { message, newBalance } = await api.giftCoins(giftUsername, amount, token);
-      syncFromServer(newBalance);
-      addTransaction({ type: 'withdrawal', amount: -amount, description: `Gifted to ${giftUsername}` });
-      Alert.alert('Gift Sent! 🎁', message);
-      setGiftUsername('');
-      setGiftAmount('');
-      await refreshUser();
-    } catch (err: any) {
-      Alert.alert('Gift Failed', err.message);
-    }
-    setGiftLoading(false);
-  };
+
 
   // ── retry queued ───────────────────────────────────────────────────────────
   const handleRetryQueued = async () => {
@@ -348,9 +337,9 @@ export default function WalletScreen() {
         </View>
 
         {/* ── Direct Bank Transfer (DVA) ────────────────────────────── */}
-        {user?.reservedAccountNumber && (
-          <View>
-            <Text style={s.sectionTitle}>Direct Bank Transfer</Text>
+        <View>
+          <Text style={s.sectionTitle}>Direct Bank Transfer</Text>
+          {user?.reservedAccountNumber ? (
             <View style={s.dvaCard}>
               <View style={s.dvaRow}>
                 <Text style={s.dvaLabel}>Bank Name</Text>
@@ -366,8 +355,18 @@ export default function WalletScreen() {
               </View>
               <Text style={s.dvaNote}>Transfer to this account to automatically fund your wallet. Funds will be converted to coins.</Text>
             </View>
-          </View>
-        )}
+          ) : (
+            <View style={s.dvaCard}>
+              <Text style={s.dvaNote}>You don't have a reserved bank account yet. Generate one to easily fund your wallet via bank transfer.</Text>
+              <Pressable style={[s.mBtn, { marginTop: 12 }]} onPress={handleCreateDva} disabled={dvaLoading}>
+                <LinearGradient colors={['#1D4ED8', '#2563EB']} style={s.mBtnInner}>
+                  {dvaLoading ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={s.mBtnText}>Generate Account Number</Text>}
+                </LinearGradient>
+              </Pressable>
+            </View>
+          )}
+        </View>
 
         {/* ── Queued withdrawals notice ────────────────────────────── */}
         {pendingWithdrawals.length > 0 && (
@@ -440,24 +439,7 @@ export default function WalletScreen() {
           )}
         </View>
 
-        {/* ── Gift Coins ──────────────────────────────────────────────── */}
-        <View>
-          <Text style={s.sectionTitle}>Gift Coins</Text>
-          <View style={s.giftCard}>
-            <TextInput style={s.mInput} placeholder="Recipient Username"
-              placeholderTextColor={colors.mutedForeground} value={giftUsername}
-              onChangeText={setGiftUsername} autoCapitalize="none" />
-            <TextInput style={s.mInput} placeholder="Amount of Coins"
-              placeholderTextColor={colors.mutedForeground} value={giftAmount}
-              onChangeText={setGiftAmount} keyboardType="numeric" />
-            <Pressable style={s.mBtn} onPress={handleGift} disabled={giftLoading}>
-              <LinearGradient colors={[colors.accent, '#059669']} style={s.mBtnInner}>
-                {giftLoading ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={s.mBtnText}>Send Gift 🎁</Text>}
-              </LinearGradient>
-            </Pressable>
-          </View>
-        </View>
+
 
         {/* ── Transaction history ──────────────────────────────────── */}
         <View>

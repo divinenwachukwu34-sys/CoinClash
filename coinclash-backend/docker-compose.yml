@@ -16,10 +16,10 @@ services:
     build: .
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/coinclash
-      - JWT_SECRET=super_secret_key
-      - PAYSTACK_SECRET_KEY=sk_test_dummy
     depends_on:
       - db
 

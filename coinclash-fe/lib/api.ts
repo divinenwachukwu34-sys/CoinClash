@@ -47,6 +47,8 @@ export const api = {
   giftCoins: (recipient_username: string, amount_coins: number, token: string) =>
     request<{ success: boolean; message: string; newBalance: number }>(
       '/gift', { method: 'POST', body: JSON.stringify({ recipient_username, amount_coins }) }, token),
+  createReservedAccount: (token: string) =>
+    request<{ bankName: string; accountNumber: string; accountName: string }>('/payment/reserved-account', { method: 'POST' }, token),
 
   // Banks
   getBanks: (token: string) => request<{ name: string; code: string }[]>('/banks/list', {}, token),

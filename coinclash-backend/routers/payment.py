@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 import database
 from middleware.auth import get_current_user
+from services.paystack import PaystackClient
 import httpx
 
 router = APIRouter()
@@ -30,7 +31,8 @@ async def init_deposit(data: DepositRequest, current_user: dict = Depends(get_cu
         )
         resp_data = response.json()
         if not resp_data.get("status"):
-            raise HTTPException(status_code=400, detail="Failed to init payment")
+            error_msg = resp_data.get("message", "Unknown error")
+            raise HTTPException(status_code=400, detail=f"Failed to init payment: {error_msg}")
             
         reference = resp_data["data"]["reference"]
         await database.create_pending_transaction(
@@ -46,6 +48,41 @@ async def init_deposit(data: DepositRequest, current_user: dict = Depends(get_cu
             "reference": reference,
             "coins": int(data.amount_ngn * (35 / 100))
         }
+
+@router.post("/reserved-account")
+async def create_reserved_account(current_user: dict = Depends(get_current_user)):
+    user = await database.get_user_by_id(current_user["userId"])
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.get("reserved_account_number"):
+        return {
+            "bankName": user["reserved_bank_name"],
+            "accountNumber": user["reserved_account_number"],
+            "accountName": user["reserved_account_name"]
+        }
+        
+    try:
+        customer = await PaystackClient.create_customer(
+            email=user["email"], 
+            first_name=user["username"], 
+            last_name="CoinClash User"
+        )
+        dva = await PaystackClient.create_dedicated_account(customer["customer_code"])
+        await database.update_user_reserved_account(
+            user["id"], 
+            customer["customer_code"], 
+            dva["bank"]["name"], 
+            dva["account_number"], 
+            dva["account_name"]
+        )
+        return {
+            "bankName": dva["bank"]["name"],
+            "accountNumber": dva["account_number"],
+            "accountName": dva["account_name"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create reserved account: {str(e)}")
 
 @router.post("/verify")
 async def verify_payment(data: VerifyRequest, current_user: dict = Depends(get_current_user)):
