@@ -15,7 +15,7 @@ interface AuthContextType {
   token: string | null;
   authLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, username: string, password: string, referralCode?: string) => Promise<void>;
+  signup: (email: string, username: string, password: string, phone?: string, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -61,8 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signup = useCallback(
-    async (email: string, username: string, password: string, referralCode?: string) => {
-      const { token: tok, user: usr } = await api.signup(email, username, password, referralCode);
+    async (email: string, username: string, password: string, phone?: string, referralCode?: string) => {
+      const { token: tok, user: usr } = await api.signup(email, username, password, phone, referralCode);
       await persist(tok, usr);
     },
     [persist]

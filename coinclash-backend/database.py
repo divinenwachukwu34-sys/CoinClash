@@ -59,12 +59,12 @@ async def _generate_unique_referral_code(conn) -> str:
         if not exists:
             return code
 
-async def create_user(email: str, username: str, password_hash: str) -> dict:
+async def create_user(email: str, username: str, password_hash: str, phone: str = None) -> dict:
     async with pool.acquire() as conn:
         referral_code = await _generate_unique_referral_code(conn)
         row = await conn.fetchrow(
-            'INSERT INTO users (email, username, password_hash, referral_code) VALUES ($1, $2, $3, $4) RETURNING *',
-            email, username, password_hash, referral_code
+            'INSERT INTO users (email, username, password_hash, referral_code, phone) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            email, username, password_hash, referral_code, phone
         )
         return dict(row)
 

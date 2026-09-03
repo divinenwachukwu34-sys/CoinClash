@@ -68,6 +68,7 @@ export default function SignupScreen() {
 
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [referralCode, setReferralCode] = useState(params.ref ?? '');
   const [loading, setLoading] = useState(false);
@@ -94,9 +95,17 @@ export default function SignupScreen() {
       const missing = PWD_RULES.filter(r => !r.test(password)).map(r => r.label);
       setErrorMsg('Password too weak. Missing: ' + missing.join(', ') + '.'); return;
     }
+
+    // Phone validation
+    if (!phone.trim()) { setErrorMsg('Please enter your phone number.'); return; }
+    const cleanPhone = phone.replace(/\s/g, '');
+    if (!/^(\+234|0)[7-9][01]\d{8}$/.test(cleanPhone)) {
+      setErrorMsg('Enter a valid Nigerian phone number — e.g. 08012345678 or +2348012345678'); return;
+    }
+
     setLoading(true);
     try {
-      await signup(email.trim().toLowerCase(), username.trim(), password, referralCode.trim() || undefined);
+      await signup(email.trim().toLowerCase(), username.trim(), password, cleanPhone, referralCode.trim() || undefined);
       router.replace('/(tabs)');
     } catch (err: any) {
       setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
@@ -192,6 +201,24 @@ export default function SignupScreen() {
                 />
               </View>
               <Text style={styles.hint}>3–20 chars · letters, numbers & underscores only</Text>
+            </View>
+
+            {/* Phone */}
+            <View>
+              <Text style={styles.label}>Phone number</Text>
+              <View style={styles.fieldWrap}>
+                <View style={styles.fieldIcon}><Ionicons name="call-outline" size={17} color="#A78BFA" /></View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 08012345678"
+                  placeholderTextColor="#4B4870"
+                  value={phone}
+                  onChangeText={(t) => { setPhone(t); setErrorMsg(''); }}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                />
+              </View>
+              <Text style={styles.hint}>Nigerian number · needed for your deposit account</Text>
             </View>
 
             {/* Password */}

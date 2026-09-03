@@ -27,9 +27,9 @@ async function request<T = any>(
 
 export const api = {
   // Auth
-  signup: (email: string, username: string, password: string, referral_code?: string) =>
+  signup: (email: string, username: string, password: string, phone?: string, referral_code?: string) =>
     request<{ token: string; user: User; referralMessage?: string }>('/auth/signup', {
-      method: 'POST', body: JSON.stringify({ email, username, password, referral_code }),
+      method: 'POST', body: JSON.stringify({ email, username, password, phone, referral_code }),
     }),
   login: (email: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

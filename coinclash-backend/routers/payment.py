@@ -64,9 +64,10 @@ async def create_reserved_account(current_user: dict = Depends(get_current_user)
         
     try:
         customer = await PaystackClient.create_customer(
-            email=user["email"], 
-            first_name=user["username"], 
-            last_name="CoinClash User"
+            email=user["email"],
+            first_name=user["username"],
+            last_name="CoinClash User",
+            phone=user.get("phone") or ""
         )
         dva = await PaystackClient.create_dedicated_account(customer["customer_code"])
         await database.update_user_reserved_account(
@@ -82,6 +83,7 @@ async def create_reserved_account(current_user: dict = Depends(get_current_user)
             "accountName": dva["account_name"]
         }
     except Exception as e:
+        print(f"[DVA ERROR] {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to create reserved account: {str(e)}")
 
 @router.post("/verify")

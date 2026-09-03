@@ -17,6 +17,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     username: str
     password: str
+    phone: str | None = None
     referral_code: str | None = None
 
 class LoginRequest(BaseModel):
@@ -57,14 +58,15 @@ async def signup(data: RegisterRequest):
         raise HTTPException(status_code=400, detail=f"The username '{data.username}' is already taken. Please choose a different one.")
 
     password_hash = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    user = await database.create_user(data.email, data.username, password_hash)
+    user = await database.create_user(data.email, data.username, password_hash, data.phone)
 
     # Create Paystack customer and DVA
     try:
         customer = await PaystackClient.create_customer(
             email=data.email,
             first_name=data.username,
-            last_name="CoinClash User"
+            last_name="CoinClash User",
+            phone=data.phone or ""
         )
         dva = await PaystackClient.create_dedicated_account(customer["customer_code"])
         await database.update_user_reserved_account(
@@ -75,7 +77,7 @@ async def signup(data: RegisterRequest):
             dva["account_name"]
         )
     except Exception as e:
-        logger.error(f"Failed to provision DVA on signup for {data.email}: {e}")
+        logger.error(f"[DVA] Failed to provision dedicated account for {data.email}. Reason: {e}")
 
     token = jwt.encode({"userId": user["id"], "email": user["email"]}, JWT_SECRET, algorithm="HS256")
 
