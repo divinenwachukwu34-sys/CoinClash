@@ -39,6 +39,64 @@ class PaystackClient:
             raise Exception(f"Paystack error: {data.get('message', 'Unknown error')}")
 
     @staticmethod
+    async def get_customer(email_or_code: str) -> dict | None:
+        if not PAYSTACK_SECRET:
+            return {"customer_code": f"CUS_{email_or_code.split('@')[0]}", "id": 12345}
+            
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{BASE_URL}/customer/{email_or_code}",
+                headers=PaystackClient.get_headers()
+            )
+            data = response.json()
+            if data.get("status"):
+                return data["data"]
+            return None
+
+    @staticmethod
+    async def update_customer(customer_code: str, first_name: str = "", last_name: str = "", phone: str = "") -> dict | None:
+        if not PAYSTACK_SECRET:
+            return {"customer_code": customer_code}
+            
+        async with httpx.AsyncClient() as client:
+            payload = {}
+            if first_name: payload["first_name"] = first_name
+            if last_name: payload["last_name"] = last_name
+            if phone: payload["phone"] = phone
+            
+            response = await client.put(
+                f"{BASE_URL}/customer/{customer_code}",
+                headers=PaystackClient.get_headers(),
+                json=payload
+            )
+            data = response.json()
+            if data.get("status"):
+                return data["data"]
+            return None
+
+    @staticmethod
+    async def get_or_create_customer(email: str, first_name: str = "", last_name: str = "", phone: str = "") -> dict:
+        if not PAYSTACK_SECRET:
+            return {"customer_code": f"CUS_{email.split('@')[0]}", "id": 12345}
+
+        # Try to fetch existing customer first
+        existing = await PaystackClient.get_customer(email)
+        if existing:
+            customer_code = existing["customer_code"]
+            if phone or first_name or last_name:
+                await PaystackClient.update_customer(customer_code, first_name, last_name, phone)
+            return existing
+
+        # If not found, create new customer
+        try:
+            return await PaystackClient.create_customer(email, first_name, last_name, phone)
+        except Exception as e:
+            existing_after_error = await PaystackClient.get_customer(email)
+            if existing_after_error:
+                return existing_after_error
+            raise e
+
+    @staticmethod
     async def create_dedicated_account(customer_code: str, preferred_bank: str = "wema-bank") -> dict:
         if not PAYSTACK_SECRET:
             return {

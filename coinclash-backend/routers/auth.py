@@ -75,7 +75,7 @@ async def signup(data: RegisterRequest):
 
     # Create Paystack customer and DVA
     try:
-        customer = await PaystackClient.create_customer(
+        customer = await PaystackClient.get_or_create_customer(
             email=data.email,
             first_name=data.username,
             last_name="CoinClash User",

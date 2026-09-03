@@ -75,7 +75,7 @@ async def create_reserved_account(data: ReservedAccountRequest = None, current_u
         user["phone"] = data.phone
 
     try:
-        customer = await PaystackClient.create_customer(
+        customer = await PaystackClient.get_or_create_customer(
             email=user["email"],
             first_name=user["username"],
             last_name="CoinClash User",
