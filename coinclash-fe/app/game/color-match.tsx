@@ -19,7 +19,8 @@ const PALETTE = [
   { name: 'Teal', hex: '#14B8A6' },
 ];
 
-const ROUNDS = 5;
+const ROUNDS = 8;
+const PER_ROUND_TIME_MS = 3000; // 3.0 seconds per round
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -48,58 +49,116 @@ export default function ColorMatchScreen() {
   const rounds = useRef(Array.from({ length: ROUNDS }, buildRound));
   const [roundIdx, setRoundIdx] = useState(0);
   const [playerCorrect, setPlayerCorrect] = useState(0);
-  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [playerScore, setPlayerScore] = useState(0);
+  const [feedback, setFeedback] = useState<'correct' | 'wrong' | 'timeout' | null>(null);
+
+  // Timers
   const startTime = useRef(Date.now());
   const roundStartTime = useRef(Date.now());
+  const [roundTimeLeft, setRoundTimeLeft] = useState(PER_ROUND_TIME_MS);
+  const [elapsedSec, setElapsedSec] = useState('0.0');
 
-  // Pre-compute AI result
-  const aiCorrect = useRef(Math.floor(ROUNDS * (0.85 + Math.random() * 0.155)));
-  const aiTime = useRef(ROUNDS * (450 + Math.random() * 300));
+  // AI parameters
+  const aiCorrect = useRef(Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
+  const aiTime = useRef(ROUNDS * (1100 + Math.random() * 500)); // ~1.1-1.6s per round average for AI
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = rounds.current[roundIdx];
 
-  const handleAnswer = useCallback(
-    (name: string) => {
-      if (feedback !== null) return;
-      const isCorrect = name === current.correct.name;
-      Haptics.impactAsync(isCorrect ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
-      setFeedback(isCorrect ? 'correct' : 'wrong');
+  // Advance to next round or finish
+  const nextRound = useCallback(
+    (isCorrect: boolean, timeSpentInRoundMs: number, isTimeout = false) => {
+      const remainingMs = Math.max(0, PER_ROUND_TIME_MS - timeSpentInRoundMs);
+      const speedBonus = isCorrect ? Math.round((remainingMs / PER_ROUND_TIME_MS) * 500) : 0;
+      const roundPts = isCorrect ? 1000 + speedBonus : 0;
+
       const newCorrect = playerCorrect + (isCorrect ? 1 : 0);
+      const newScore = playerScore + roundPts;
+
+      setPlayerCorrect(newCorrect);
+      setPlayerScore(newScore);
+
+      setFeedback(isTimeout ? 'timeout' : isCorrect ? 'correct' : 'wrong');
 
       setTimeout(() => {
         setFeedback(null);
         if (roundIdx + 1 >= ROUNDS) {
           const totalTime = Date.now() - startTime.current;
-          const won = newCorrect > aiCorrect.current || (newCorrect === aiCorrect.current && totalTime < aiTime.current);
-          finish(won, newCorrect, aiCorrect.current, 'pts');
+          // Tie breaker: higher score first, or faster total time
+          const won =
+            newCorrect > aiCorrect.current ||
+            (newCorrect === aiCorrect.current && totalTime < aiTime.current);
+
+          finish(won, totalTime, aiTime.current, 'ms');
         } else {
           setRoundIdx((r) => r + 1);
-          setPlayerCorrect(newCorrect);
           roundStartTime.current = Date.now();
+          setRoundTimeLeft(PER_ROUND_TIME_MS);
         }
-      }, 400);
+      }, 350);
     },
-    [feedback, current, playerCorrect, roundIdx, finish]
+    [roundIdx, playerCorrect, playerScore, finish]
   );
+
+  // Handle user tap
+  const handleAnswer = useCallback(
+    (name: string) => {
+      if (feedback !== null) return;
+      const spent = Date.now() - roundStartTime.current;
+      const isCorrect = name === current.correct.name;
+      Haptics.impactAsync(isCorrect ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
+      nextRound(isCorrect, spent, false);
+    },
+    [feedback, current, nextRound]
+  );
+
+  // Per-round countdown loop & total stopwatch
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const totalElapsed = (Date.now() - startTime.current) / 1000;
+      setElapsedSec(totalElapsed.toFixed(1));
+
+      if (feedback !== null) return;
+
+      const roundSpent = Date.now() - roundStartTime.current;
+      const left = Math.max(0, PER_ROUND_TIME_MS - roundSpent);
+      setRoundTimeLeft(left);
+
+      if (left <= 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        nextRound(false, PER_ROUND_TIME_MS, true);
+      }
+    }, 50);
+
+    return () => clearInterval(timer);
+  }, [roundIdx, feedback, nextRound]);
+
+  const timePct = roundTimeLeft / PER_ROUND_TIME_MS;
+  const timerBarColor = timePct > 0.5 ? '#10B981' : timePct > 0.25 ? '#EAB308' : '#EF4444';
 
   const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    header: { paddingTop: topPad + 12, paddingHorizontal: 20, paddingBottom: 16 },
-    topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    header: { paddingTop: topPad + 12, paddingHorizontal: 20, paddingBottom: 12 },
+    topBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
     backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-    title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
-    progress: { flexDirection: 'row', gap: 6, justifyContent: 'center' },
+    title: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+    stopwatch: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+    stopwatchText: { fontSize: 13, color: colors.primary, fontFamily: 'Inter_700Bold' },
+
+    timerTrack: { height: 6, width: '100%', backgroundColor: colors.muted, borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
+    timerFill: { height: '100%', borderRadius: 3 },
+
+    progress: { flexDirection: 'row', gap: 4, justifyContent: 'center' },
     dot: { height: 4, borderRadius: 2 },
-    arena: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 32, paddingHorizontal: 24 },
+    arena: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, paddingHorizontal: 24 },
     question: { fontSize: 16, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', textAlign: 'center' },
-    colorCircle: { width: 130, height: 130, borderRadius: 65, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 16, elevation: 8 },
+    colorCircle: { width: 140, height: 140, borderRadius: 70, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 16, elevation: 8 },
     optionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center', width: '100%' },
-    optionBtn: { width: '44%', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 2 },
-    optionText: { fontSize: 15, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
-    scoreRow: { flexDirection: 'row', gap: 8 },
-    scoreChip: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-    scoreText: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+    optionBtn: { width: '44%', paddingVertical: 16, borderRadius: 14, alignItems: 'center', borderWidth: 2 },
+    optionText: { fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+    scoreRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+    scoreChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 },
+    scoreText: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   });
 
   return (
@@ -109,15 +168,24 @@ export default function ColorMatchScreen() {
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="close" size={18} color={colors.mutedForeground} />
           </Pressable>
-          <Text style={styles.title}>Color Match — Round {roundIdx + 1}/{ROUNDS}</Text>
-          <View style={{ width: 36 }} />
+          <Text style={styles.title}>Color Match — {roundIdx + 1}/{ROUNDS}</Text>
+          <View style={styles.stopwatch}>
+            <Ionicons name="stopwatch-outline" size={14} color={colors.primary} />
+            <Text style={styles.stopwatchText}>{elapsedSec}s</Text>
+          </View>
         </View>
+
+        {/* Rapid countdown bar for round */}
+        <View style={styles.timerTrack}>
+          <View style={[styles.timerFill, { width: `${Math.max(0, timePct * 100)}%`, backgroundColor: timerBarColor }]} />
+        </View>
+
         <View style={styles.progress}>
           {Array.from({ length: ROUNDS }).map((_, i) => (
             <View
               key={i}
               style={[styles.dot, {
-                width: i < roundIdx ? 20 : 12,
+                width: i < roundIdx ? 16 : i === roundIdx ? 24 : 8,
                 backgroundColor: i < roundIdx ? colors.accent : i === roundIdx ? current.correct.hex : colors.muted,
               }]}
             />
@@ -126,13 +194,15 @@ export default function ColorMatchScreen() {
       </LinearGradient>
 
       <View style={styles.arena}>
-        <Text style={styles.question}>What color is this?</Text>
+        <Text style={styles.question}>
+          {feedback === 'timeout' ? '⏰ TIME UP!' : 'What color is this?'}
+        </Text>
         <View
           style={[
             styles.colorCircle,
             {
               backgroundColor: current.correct.hex,
-              opacity: feedback === 'wrong' ? 0.5 : 1,
+              opacity: feedback === 'wrong' || feedback === 'timeout' ? 0.4 : 1,
             },
           ]}
         />
@@ -144,7 +214,7 @@ export default function ColorMatchScreen() {
                 ? colors.card
                 : isCorrect
                 ? colors.accent + '30'
-                : feedback === 'wrong' && opt.name === current.options.find(o => o.name !== current.correct.name)?.name
+                : feedback === 'wrong'
                 ? colors.destructive + '30'
                 : colors.card;
             const borderColor =
@@ -155,18 +225,22 @@ export default function ColorMatchScreen() {
                 key={opt.name}
                 style={[styles.optionBtn, { backgroundColor: bgColor, borderColor }]}
                 onPress={() => handleAnswer(opt.name)}
+                disabled={feedback !== null}
               >
                 <Text style={[styles.optionText, { color: colors.foreground }]}>{opt.name}</Text>
               </Pressable>
             );
           })}
         </View>
+
         <View style={styles.scoreRow}>
           <View style={[styles.scoreChip, { backgroundColor: colors.accent + '20' }]}>
-            <Text style={[styles.scoreText, { color: colors.accent }]}>You: {playerCorrect}/{ROUNDS}</Text>
+            <Ionicons name="checkmark-circle" size={15} color={colors.accent} />
+            <Text style={[styles.scoreText, { color: colors.accent }]}>Accuracy: {playerCorrect}/{ROUNDS}</Text>
           </View>
-          <View style={[styles.scoreChip, { backgroundColor: colors.destructive + '20' }]}>
-            <Text style={[styles.scoreText, { color: colors.destructive }]}>AI: ?/{ROUNDS}</Text>
+          <View style={[styles.scoreChip, { backgroundColor: colors.primary + '20' }]}>
+            <Ionicons name="flash" size={15} color={colors.primary} />
+            <Text style={[styles.scoreText, { color: colors.primary }]}>{playerScore} pts</Text>
           </View>
         </View>
       </View>

@@ -9,7 +9,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TILE_COLORS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
-const SEQ_LENGTH = 4;
+const SEQ_LENGTH = 5;
 
 function buildSequence(): number[] {
   return Array.from({ length: SEQ_LENGTH }, () => Math.floor(Math.random() * 6));
@@ -29,8 +29,11 @@ export default function MemoryFlashScreen() {
   const [phase, setPhase] = useState<Phase>('intro');
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [inputSeq, setInputSeq] = useState<number[]>([]);
+
+  // Timers
   const startTime = useRef(0);
-  const aiTime = useRef(Math.round(3500 + Math.random() * 2000)); // 3.5-5.5s
+  const [elapsedSec, setElapsedSec] = useState('0.00');
+  const aiTime = useRef(Math.round(2800 + Math.random() * 1400)); // ~2.8-4.2s for AI
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -47,22 +50,32 @@ export default function MemoryFlashScreen() {
           setTimeout(() => {
             idx++;
             show();
-          }, 200);
-        }, 500);
+          }, 180);
+        }, 450);
       } else {
         setPhase('input');
         startTime.current = Date.now();
       }
     };
-    setTimeout(show, 600);
+    setTimeout(show, 500);
   }, []);
 
   useEffect(() => {
     if (phase === 'intro') {
-      const t = setTimeout(startShowing, 800);
+      const t = setTimeout(startShowing, 600);
       return () => clearTimeout(t);
     }
   }, [phase, startShowing]);
+
+  // Live stopwatch tick during input phase
+  useEffect(() => {
+    if (phase !== 'input') return;
+    const timer = setInterval(() => {
+      const spent = (Date.now() - startTime.current) / 1000;
+      setElapsedSec(spent.toFixed(2));
+    }, 30);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   const handleTile = useCallback(
     (tileIdx: number) => {
@@ -98,71 +111,81 @@ export default function MemoryFlashScreen() {
     topBar: { flexDirection: 'row', alignItems: 'center' },
     backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
     title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+    stopwatch: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+    stopwatchText: { fontSize: 13, color: colors.primary, fontFamily: 'Inter_700Bold' },
+
     arena: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 32, paddingHorizontal: 24 },
-    phaseLabel: { fontSize: 20, fontWeight: '600' as const, color: colors.foreground, fontFamily: 'Inter_600SemiBold', textAlign: 'center' },
-    sub: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: -20 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, width: TILE_SIZE * 2 + 12, justifyContent: 'center' },
-    tile: { width: TILE_SIZE, height: TILE_SIZE, borderRadius: 16 },
-    progress: { flexDirection: 'row', gap: 6 },
-    progressDot: { width: 10, height: 10, borderRadius: 5 },
+    instruction: { fontSize: 16, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', textAlign: 'center' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', width: TILE_SIZE * 3 + 24, gap: 12, justifyContent: 'center' },
+    tile: {
+      width: TILE_SIZE, height: TILE_SIZE, borderRadius: 18,
+      shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+    },
+    progressRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
   });
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#1A0A3A', colors.background]} style={styles.header}>
+      <LinearGradient colors={['#0F172A', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="close" size={18} color={colors.mutedForeground} />
           </Pressable>
           <Text style={styles.title}>Memory Flash</Text>
-          <View style={{ width: 36 }} />
+          <View style={styles.stopwatch}>
+            <Ionicons name="stopwatch-outline" size={14} color={colors.primary} />
+            <Text style={styles.stopwatchText}>{elapsedSec}s</Text>
+          </View>
         </View>
       </LinearGradient>
 
       <View style={styles.arena}>
-        {phase === 'intro' && <Text style={styles.phaseLabel}>Watch the sequence!</Text>}
-        {phase === 'showing' && <Text style={styles.phaseLabel}>Memorize...</Text>}
-        {phase === 'input' && <Text style={styles.phaseLabel}>Repeat it!</Text>}
-        {phase === 'done' && <Text style={styles.phaseLabel}>Done!</Text>}
+        <Text style={styles.instruction}>
+          {phase === 'intro' && 'Get ready... Memorize the sequence!'}
+          {phase === 'showing' && 'Watch carefully...'}
+          {phase === 'input' && 'TAP THE SEQUENCE IN ORDER! FAST TIME WINS!'}
+          {phase === 'done' && 'Sequence finished!'}
+        </Text>
 
         <View style={styles.grid}>
-          {TILE_COLORS.map((hex, i) => {
-            const isHighlighted = highlightIdx === i;
-            const isInputted = inputSeq.includes(i) && phase === 'input';
+          {TILE_COLORS.map((col, idx) => {
+            const isLit = highlightIdx === idx;
             return (
               <Pressable
-                key={i}
+                key={idx}
                 style={[
                   styles.tile,
                   {
-                    backgroundColor: isHighlighted ? hex : hex + '40',
-                    borderWidth: isHighlighted ? 3 : 1,
-                    borderColor: isHighlighted ? '#fff' : hex + '60',
-                    transform: [{ scale: isHighlighted ? 1.05 : 1 }],
-                    opacity: phase !== 'input' ? 0.8 : 1,
+                    backgroundColor: col,
+                    opacity: isLit ? 1 : phase === 'input' ? 0.85 : 0.25,
+                    transform: [{ scale: isLit ? 1.08 : 1 }],
                   },
                 ]}
-                onPress={() => handleTile(i)}
+                onPress={() => handleTile(idx)}
+                disabled={phase !== 'input'}
               />
             );
           })}
         </View>
 
-        <View style={styles.progress}>
-          {Array.from({ length: SEQ_LENGTH }).map((_, i) => (
-            <View key={i} style={[styles.progressDot, {
-              backgroundColor: i < inputSeq.length ? colors.accent : colors.muted,
-            }]} />
-          ))}
+        <View style={styles.progressRow}>
+          {Array.from({ length: SEQ_LENGTH }).map((_, i) => {
+            const filled = i < inputSeq.length;
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: filled ? colors.accent : 'transparent',
+                    borderColor: filled ? colors.accent : colors.muted,
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
-
-        <Text style={styles.sub}>
-          {phase === 'showing'
-            ? `Showing: ${highlightIdx >= 0 ? highlightIdx + 1 : '...'}`
-            : phase === 'input'
-            ? `Tap ${SEQ_LENGTH - inputSeq.length} more tiles`
-            : ''}
-        </Text>
       </View>
     </View>
   );

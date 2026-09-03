@@ -74,7 +74,7 @@ export default function ResultScreen() {
 
   // Flexible display based on unit
   const formatVal = (v: number) => {
-    if (unit === 'ms') return `${v}ms`;
+    if (unit === 'ms') return `${(v / 1000).toFixed(2)}s`;
     if (unit === 'err') return `${v} err`;
     if (unit === 'pts') return `${v} pts`;
     if (unit === 'hits') return `${v} hits`;
@@ -86,9 +86,10 @@ export default function ResultScreen() {
   const getSubtitle = () => {
     if (unit === 'ms') {
       if (!won && playerVal === 0) return 'You tapped too early';
+      const diffSec = (Math.abs(opponentVal - playerVal) / 1000).toFixed(2);
       return won
-        ? `You were ${opponentVal - playerVal}ms faster`
-        : `You were ${playerVal - opponentVal}ms too slow`;
+        ? `⚡ Fast finish! You were ${diffSec}s faster!`
+        : `⌛ Opponent was ${diffSec}s faster!`;
     }
     if (unit === 'err') {
       return won ? 'You were more accurate!' : 'Your opponent was more accurate';
