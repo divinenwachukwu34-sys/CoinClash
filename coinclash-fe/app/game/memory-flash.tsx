@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TILE_COLORS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -125,11 +125,29 @@ export default function MemoryFlashScreen() {
     dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
   });
 
+  const handleQuit = useCallback(() => {
+    Alert.alert(
+      'Quit Game?',
+      'Leaving a game in progress will result in an AUTOMATIC LOSS and forfeit your stake to the opponent.',
+      [
+        { text: 'Stay & Fight', style: 'cancel' },
+        {
+          text: 'Forfeit Match',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            finish(false, 99999, 0, 'ms');
+          },
+        },
+      ]
+    );
+  }, [finish]);
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#0F172A', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={handleQuit}>
             <Ionicons name="close" size={18} color={colors.mutedForeground} />
           </Pressable>
           <Text style={styles.title}>Memory Flash</Text>

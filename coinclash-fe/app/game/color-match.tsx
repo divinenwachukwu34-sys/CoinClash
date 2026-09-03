@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PALETTE = [
@@ -161,11 +161,29 @@ export default function ColorMatchScreen() {
     scoreText: { fontSize: 13, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   });
 
+  const handleQuit = useCallback(() => {
+    Alert.alert(
+      'Quit Game?',
+      'Leaving a game in progress will result in an AUTOMATIC LOSS and forfeit your stake to the opponent.',
+      [
+        { text: 'Stay & Fight', style: 'cancel' },
+        {
+          text: 'Forfeit Match',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            finish(false, 99999, 0, 'ms');
+          },
+        },
+      ]
+    );
+  }, [finish]);
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#2D0A2A', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={handleQuit}>
             <Ionicons name="close" size={18} color={colors.mutedForeground} />
           </Pressable>
           <Text style={styles.title}>Color Match — {roundIdx + 1}/{ROUNDS}</Text>

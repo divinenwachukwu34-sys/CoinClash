@@ -5,12 +5,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const ROUNDS = 3;
-const MAX_NUM = 10;
-const TICK_MS = 280;
+const ROUNDS = 5;
+const MAX_NUM = 12;
+const TICK_MS = 250;
 
 export default function NumberCatchScreen() {
   const colors = useColors();
@@ -23,19 +23,48 @@ export default function NumberCatchScreen() {
   const [phase, setPhase] = useState<'intro' | 'playing' | 'feedback' | 'done'>('intro');
   const [roundIdx, setRoundIdx] = useState(0);
   const [counter, setCounter] = useState(1);
-  const [target, setTarget] = useState(0);
   const [playerErrors, setPlayerErrors] = useState<number[]>([]);
   const [lastError, setLastError] = useState<number | null>(null);
   const counterRef = useRef(1);
+
+  // Timers
+  const startTime = useRef(Date.now());
+  const [elapsedSec, setElapsedSec] = useState('0.0');
+
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
-  const aiTotalError = useRef(Math.round(Math.random() * 2)); // 0–2 total error
+  // AI parameters (pre-computed randomized performance)
+  const aiTotalError = useRef(Math.floor(Math.random() * 2)); // 0–1 error
+  const aiTime = useRef(ROUNDS * (1200 + Math.random() * 600));
 
-  const buildTarget = () => Math.floor(Math.random() * (MAX_NUM - 2)) + 2; // 2-9
+  const buildTarget = () => Math.floor(Math.random() * (MAX_NUM - 3)) + 2; // 2 to MAX_NUM-1
 
   const [targets] = useState<number[]>(() =>
     Array.from({ length: ROUNDS }, buildTarget)
   );
+
+  // Automatic Loss if leaving mid-game
+  const handleQuit = useCallback(() => {
+    if (phase === 'done') {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      'Quit Game?',
+      'Leaving a game in progress will result in an AUTOMATIC LOSS and forfeit your stake to the opponent.',
+      [
+        { text: 'Stay & Fight', style: 'cancel' },
+        {
+          text: 'Forfeit Match',
+          style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            finish(false, 999, 0, 'err');
+          },
+        },
+      ]
+    );
+  }, [phase, finish, router]);
 
   // Keep counterRef in sync
   useEffect(() => { counterRef.current = counter; }, [counter]);
@@ -50,6 +79,16 @@ export default function NumberCatchScreen() {
         return next;
       });
     }, TICK_MS);
+    return () => clearInterval(t);
+  }, [phase]);
+
+  // Total stopwatch
+  useEffect(() => {
+    if (phase === 'done') return;
+    const t = setInterval(() => {
+      const spent = (Date.now() - startTime.current) / 1000;
+      setElapsedSec(spent.toFixed(1));
+    }, 50);
     return () => clearInterval(t);
   }, [phase]);
 
@@ -68,17 +107,30 @@ export default function NumberCatchScreen() {
       setLastError(null);
       if (roundIdx + 1 >= ROUNDS) {
         const totalErr = newErrors.reduce((a, b) => a + b, 0);
-        const won = totalErr <= aiTotalError.current;
+        const totalTime = Date.now() - startTime.current;
+
+        // Tie-breaker: lower error wins, or faster total time if errors are equal
+        const won =
+          totalErr < aiTotalError.current ||
+          (totalErr === aiTotalError.current && totalTime < aiTime.current);
+
         setPhase('done');
-        finish(won, totalErr, aiTotalError.current, 'err');
+        finish(won, totalTime, aiTime.current, 'ms');
       } else {
         setRoundIdx((r) => r + 1);
         setCounter(1);
         counterRef.current = 1;
         setPhase('playing');
       }
-    }, 1000);
+    }, 800);
   }, [phase, roundIdx, targets, playerErrors, finish]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPhase('playing'), 600);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const currentTarget = targets[roundIdx];
 
   const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -86,100 +138,81 @@ export default function NumberCatchScreen() {
     topBar: { flexDirection: 'row', alignItems: 'center' },
     backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
     title: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+    stopwatch: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+    stopwatchText: { fontSize: 13, color: colors.primary, fontFamily: 'Inter_700Bold' },
+
     arena: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 28, paddingHorizontal: 24 },
     targetCard: {
       backgroundColor: colors.card, borderRadius: 20, borderWidth: 1,
-      borderColor: colors.border, paddingVertical: 20, paddingHorizontal: 40,
+      borderColor: colors.border, paddingVertical: 18, paddingHorizontal: 36,
       alignItems: 'center', gap: 4,
     },
     targetLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
     targetNum: { fontSize: 52, fontWeight: '700' as const, color: colors.gold, fontFamily: 'Inter_700Bold' },
     counterDisc: {
-      width: 160, height: 160, borderRadius: 80,
+      width: 170, height: 170, borderRadius: 85,
       backgroundColor: colors.card, borderWidth: 4,
       alignItems: 'center', justifyContent: 'center',
     },
-    counterNum: { fontSize: 72, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
-    tapBtn: {
-      paddingHorizontal: 48, paddingVertical: 18, borderRadius: 16,
-      alignItems: 'center',
-    },
-    tapBtnText: { fontSize: 18, fontWeight: '700' as const, color: '#fff', fontFamily: 'Inter_700Bold' },
-    feedbackText: { fontSize: 18, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
-    errRow: { flexDirection: 'row', gap: 8 },
-    errDot: { width: 12, height: 12, borderRadius: 6 },
-    startBtn: { paddingHorizontal: 48, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+    counterNum: { fontSize: 64, fontWeight: '800' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+    tapBtn: { width: '80%', paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+    tapBtnText: { fontSize: 20, fontWeight: '700' as const, color: '#fff', fontFamily: 'Inter_700Bold' },
+
+    progressRow: { flexDirection: 'row', gap: 8 },
+    dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
   });
-
-  const currentTarget = targets[roundIdx];
-
-  const counterColor =
-    counter === currentTarget
-      ? colors.accent
-      : Math.abs(counter - currentTarget) <= 1
-      ? colors.gold
-      : colors.foreground;
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#1A140A', colors.background]} style={styles.header}>
+      <LinearGradient colors={['#0F291E', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={handleQuit}>
             <Ionicons name="close" size={18} color={colors.mutedForeground} />
           </Pressable>
-          <Text style={styles.title}>Number Catch — Round {roundIdx + 1}/{ROUNDS}</Text>
-          <View style={{ width: 36 }} />
+          <Text style={styles.title}>Number Catch — {roundIdx + 1}/{ROUNDS}</Text>
+          <View style={styles.stopwatch}>
+            <Ionicons name="stopwatch-outline" size={14} color={colors.primary} />
+            <Text style={styles.stopwatchText}>{elapsedSec}s</Text>
+          </View>
         </View>
       </LinearGradient>
 
       <View style={styles.arena}>
-        <View style={styles.errRow}>
-          {playerErrors.map((e, i) => (
-            <View key={i} style={[styles.errDot, { backgroundColor: e === 0 ? colors.accent : e === 1 ? colors.gold : colors.destructive }]} />
-          ))}
-          {Array.from({ length: ROUNDS - playerErrors.length }).map((_, i) => (
-            <View key={i + playerErrors.length} style={[styles.errDot, { backgroundColor: colors.muted }]} />
-          ))}
-        </View>
-
         <View style={styles.targetCard}>
-          <Text style={styles.targetLabel}>CATCH THIS NUMBER</Text>
+          <Text style={styles.targetLabel}>TARGET NUMBER</Text>
           <Text style={styles.targetNum}>{currentTarget}</Text>
         </View>
 
-        <View style={[styles.counterDisc, {
-          borderColor: phase === 'playing' ? counterColor : colors.border,
-        }]}>
-          {phase === 'intro' ? (
-            <Text style={[styles.counterNum, { color: colors.mutedForeground, fontSize: 32 }]}>?</Text>
-          ) : (
-            <Text style={[styles.counterNum, { color: counterColor }]}>{counter}</Text>
-          )}
+        <View style={[styles.counterDisc, { borderColor: counter === currentTarget ? colors.accent : colors.border }]}>
+          <Text style={styles.counterNum}>{counter}</Text>
         </View>
 
-        {phase === 'intro' && (
-          <Pressable style={styles.startBtn} onPress={() => setPhase('playing')}>
-            <LinearGradient colors={[colors.gold, '#D97706']} style={{ padding: 16, borderRadius: 14, width: 200, alignItems: 'center' }}>
-              <Text style={styles.tapBtnText}>Start Round</Text>
-            </LinearGradient>
-          </Pressable>
-        )}
-
-        {phase === 'playing' && (
-          <Pressable onPress={handleTap} style={styles.tapBtn}>
-            <LinearGradient colors={[colors.primary, '#4F1ADE']} style={{ padding: 16, borderRadius: 14, width: 200, alignItems: 'center' }}>
-              <Text style={styles.tapBtnText}>TAP!</Text>
-            </LinearGradient>
-          </Pressable>
-        )}
-
-        {phase === 'feedback' && lastError !== null && (
-          <Text style={[styles.feedbackText, {
-            color: lastError === 0 ? colors.accent : lastError === 1 ? colors.gold : colors.destructive,
-          }]}>
-            {lastError === 0 ? 'Perfect!' : lastError === 1 ? `Off by ${lastError}` : `Off by ${lastError} — too slow!`}
+        {lastError !== null ? (
+          <Text style={{ fontSize: 18, color: lastError === 0 ? colors.accent : colors.destructive, fontWeight: '700' }}>
+            {lastError === 0 ? '🎯 PERFECT CATCH!' : `❌ MISSED BY ${lastError}`}
           </Text>
+        ) : (
+          <Pressable style={{ width: '100%', alignItems: 'center' }} onPress={handleTap} disabled={phase !== 'playing'}>
+            <LinearGradient colors={[colors.accent, '#059669']} style={styles.tapBtn}>
+              <Text style={styles.tapBtnText}>CATCH!</Text>
+            </LinearGradient>
+          </Pressable>
         )}
+
+        <View style={styles.progressRow}>
+          {Array.from({ length: ROUNDS }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: i < playerErrors.length ? (playerErrors[i] === 0 ? colors.accent : colors.destructive) : 'transparent',
+                  borderColor: i === roundIdx ? colors.gold : colors.muted,
+                },
+              ]}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );
