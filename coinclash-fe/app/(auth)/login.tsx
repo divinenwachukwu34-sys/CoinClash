@@ -57,7 +57,7 @@ export default function LoginScreen() {
     <View style={styles.container}>
       {/* Deep dark gradient background */}
       <LinearGradient
-        colors={['#000000', '#0D0829', '#110C35']}
+        colors={['#060414', '#0D0829', '#110C35']}
         style={StyleSheet.absoluteFillObject}
       />
       {/* Gold glow orb behind logo */}

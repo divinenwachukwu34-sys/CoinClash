@@ -116,7 +116,7 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#000000', '#0D0829', '#110C35']} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={['#060414', '#0D0829', '#110C35']} style={StyleSheet.absoluteFillObject} />
       <View style={styles.glowOrb} />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
