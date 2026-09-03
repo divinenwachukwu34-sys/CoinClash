@@ -24,6 +24,19 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+def format_user_dict(user: dict) -> dict:
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "username": user["username"],
+        "coinBalance": user["coin_balance"],
+        "phone": user.get("phone"),
+        "referralCode": user.get("referral_code"),
+        "reservedBankName": user.get("reserved_bank_name"),
+        "reservedAccountNumber": user.get("reserved_account_number"),
+        "reservedAccountName": user.get("reserved_account_name")
+    }
+
 @router.post("/signup")
 async def signup(data: RegisterRequest):
     import re
@@ -79,6 +92,9 @@ async def signup(data: RegisterRequest):
     except Exception as e:
         logger.error(f"[DVA] Failed to provision dedicated account for {data.email}. Reason: {e}")
 
+    # Fetch updated user details after possible DVA creation
+    updated_user = await database.get_user_by_id(user["id"]) or user
+
     token = jwt.encode({"userId": user["id"], "email": user["email"]}, JWT_SECRET, algorithm="HS256")
 
     # Process referral code if provided
@@ -101,7 +117,7 @@ async def signup(data: RegisterRequest):
 
     return {
         "token": token,
-        "user": {"id": user["id"], "email": user["email"], "username": user["username"], "coinBalance": user["coin_balance"]},
+        "user": format_user_dict(updated_user),
         "referralMessage": referral_message,
     }
 
@@ -118,19 +134,11 @@ async def login(data: LoginRequest):
         raise HTTPException(status_code=401, detail="Wrong password. Please try again. Remember passwords are case-sensitive — check your CAPS LOCK.")
 
     token = jwt.encode({"userId": user["id"], "email": user["email"]}, JWT_SECRET, algorithm="HS256")
-    return {"token": token, "user": {"id": user["id"], "email": user["email"], "username": user["username"], "coinBalance": user["coin_balance"]}}
+    return {"token": token, "user": format_user_dict(user)}
 
 @router.get("/me")
 async def me(current_user: dict = Depends(get_current_user)):
     user = await database.get_user_by_id(current_user["userId"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "id": user["id"], 
-        "email": user["email"], 
-        "username": user["username"], 
-        "coinBalance": user["coin_balance"],
-        "reservedBankName": user.get("reserved_bank_name"),
-        "reservedAccountNumber": user.get("reserved_account_number"),
-        "reservedAccountName": user.get("reserved_account_name")
-    }
+    return format_user_dict(user)

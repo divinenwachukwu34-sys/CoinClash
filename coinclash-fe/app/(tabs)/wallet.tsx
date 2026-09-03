@@ -63,6 +63,9 @@ export default function WalletScreen() {
 
   // ── DVA state ─────────────────────────────────────────────────────────────
   const [dvaLoading, setDvaLoading] = useState(false);
+  const [dvaError, setDvaError] = useState('');
+  const [dvaPhone, setDvaPhone] = useState('');
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false);
 
   const [activeModal, setActiveModal] = useState<Modal_>('none');
 
@@ -138,17 +141,25 @@ export default function WalletScreen() {
   };
 
   // ── DVA creation ───────────────────────────────────────────────────────────
-  const handleCreateDva = async () => {
+  const handleCreateDva = async (phoneToUse?: string) => {
     if (!token) return;
     setDvaLoading(true);
+    setDvaError('');
     try {
-      await api.createReservedAccount(token);
+      await api.createReservedAccount(token, phoneToUse || dvaPhone || undefined);
       await refreshUser();
-      Alert.alert('Success', 'Your reserved account has been created! 🎉');
+      setShowPhonePrompt(false);
     } catch (err: any) {
-      Alert.alert('Failed to generate account', err.message);
+      const msg = err.message ?? 'Failed to generate account.';
+      if (msg.toLowerCase().includes('phone')) {
+        setShowPhonePrompt(true);
+        setDvaError('Paystack requires a phone number to issue a reserved bank account. Enter your phone number below.');
+      } else {
+        setDvaError(msg);
+      }
+    } finally {
+      setDvaLoading(false);
     }
-    setDvaLoading(false);
   };
 
   // ── add bank ───────────────────────────────────────────────────────────────
@@ -358,12 +369,39 @@ export default function WalletScreen() {
           ) : (
             <View style={s.dvaCard}>
               <Text style={s.dvaNote}>You don't have a reserved bank account yet. Generate one to easily fund your wallet via bank transfer.</Text>
-              <Pressable style={[s.mBtn, { marginTop: 12 }]} onPress={handleCreateDva} disabled={dvaLoading}>
-                <LinearGradient colors={['#1D4ED8', '#2563EB']} style={s.mBtnInner}>
-                  {dvaLoading ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={s.mBtnText}>Generate Account Number</Text>}
-                </LinearGradient>
-              </Pressable>
+              
+              {dvaError ? (
+                <View style={{ backgroundColor: 'rgba(255,59,48,0.12)', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,59,48,0.3)', flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 10 }}>
+                  <Ionicons name="alert-circle" size={16} color="#FF3B30" />
+                  <Text style={{ flex: 1, color: '#FF3B30', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 }}>{dvaError}</Text>
+                </View>
+              ) : null}
+
+              {showPhonePrompt ? (
+                <View style={{ marginTop: 10, gap: 8 }}>
+                  <TextInput
+                    style={s.mInput}
+                    placeholder="Enter phone number (e.g. 08012345678)"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={dvaPhone}
+                    onChangeText={setDvaPhone}
+                    keyboardType="phone-pad"
+                  />
+                  <Pressable style={s.mBtn} onPress={() => handleCreateDva(dvaPhone)} disabled={dvaLoading || !dvaPhone.trim()}>
+                    <LinearGradient colors={['#1D4ED8', '#2563EB']} style={s.mBtnInner}>
+                      {dvaLoading ? <ActivityIndicator color="#fff" size="small" />
+                        : <Text style={s.mBtnText}>Save Phone & Generate Account</Text>}
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable style={[s.mBtn, { marginTop: 12 }]} onPress={() => handleCreateDva()} disabled={dvaLoading}>
+                  <LinearGradient colors={['#1D4ED8', '#2563EB']} style={s.mBtnInner}>
+                    {dvaLoading ? <ActivityIndicator color="#fff" size="small" />
+                      : <Text style={s.mBtnText}>Generate Account Number</Text>}
+                  </LinearGradient>
+                </Pressable>
+              )}
             </View>
           )}
         </View>

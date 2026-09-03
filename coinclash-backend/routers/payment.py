@@ -49,8 +49,11 @@ async def init_deposit(data: DepositRequest, current_user: dict = Depends(get_cu
             "coins": int(data.amount_ngn * (35 / 100))
         }
 
+class ReservedAccountRequest(BaseModel):
+    phone: str | None = None
+
 @router.post("/reserved-account")
-async def create_reserved_account(current_user: dict = Depends(get_current_user)):
+async def create_reserved_account(data: ReservedAccountRequest = None, current_user: dict = Depends(get_current_user)):
     user = await database.get_user_by_id(current_user["userId"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -62,12 +65,21 @@ async def create_reserved_account(current_user: dict = Depends(get_current_user)
             "accountName": user["reserved_account_name"]
         }
         
+    phone = (data.phone if data and data.phone else None) or user.get("phone")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required to generate a dedicated bank account.")
+
+    if data and data.phone and not user.get("phone"):
+        async with database.pool.acquire() as conn:
+            await conn.execute('UPDATE users SET phone = $1 WHERE id = $2', data.phone, user["id"])
+        user["phone"] = data.phone
+
     try:
         customer = await PaystackClient.create_customer(
             email=user["email"],
             first_name=user["username"],
             last_name="CoinClash User",
-            phone=user.get("phone") or ""
+            phone=phone
         )
         dva = await PaystackClient.create_dedicated_account(customer["customer_code"])
         await database.update_user_reserved_account(
