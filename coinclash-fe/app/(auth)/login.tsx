@@ -57,7 +57,7 @@ export default function LoginScreen() {
     <View style={styles.container}>
       {/* Deep dark gradient background */}
       <LinearGradient
-        colors={['#060414', '#0D0829', '#110C35']}
+        colors={['#000000', '#0D0829', '#110C35']}
         style={StyleSheet.absoluteFillObject}
       />
       {/* Gold glow orb behind logo */}
@@ -186,9 +186,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   scroll: { flexGrow: 1, paddingHorizontal: 24 },
-  logoArea: { alignItems: 'center', marginBottom: 16, gap: 4 },
+  logoArea: { alignItems: 'center', marginBottom: 8, gap: 2 },
   logo: { width: 280, height: 280 },
-  appName: { fontSize: 32, fontWeight: '800', color: '#F5F0FF', fontFamily: 'Inter_700Bold', letterSpacing: 0.5, marginTop: -24 },
+  appName: { fontSize: 32, fontWeight: '800', color: '#F5F0FF', fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
   taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   taglineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F59E0B' },
   tagline: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular', letterSpacing: 0.5 },
