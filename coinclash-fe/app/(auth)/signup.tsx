@@ -136,6 +136,12 @@ export default function SignupScreen() {
           {/* ── Logo ──────────────────────────── */}
           <View style={styles.logoArea}>
             <Image source={require('@/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+            <Text style={styles.appName}>CoinClash</Text>
+            <View style={styles.taglineRow}>
+              <View style={styles.taglineDot} />
+              <Text style={styles.tagline}>Play. Compete. Win.</Text>
+              <View style={styles.taglineDot} />
+            </View>
           </View>
 
           {/* ── Card ──────────────────────────── */}
@@ -290,8 +296,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#110E2E', borderWidth: 1, borderColor: '#2A2550',
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  logoArea: { alignItems: 'center', marginBottom: 16 },
-  logo: { width: 260, height: 148 },
+  logoArea: { alignItems: 'center', marginBottom: 12, gap: 4 },
+  logo: { width: 200, height: 200 },
+  appName: { fontSize: 28, fontWeight: '800', color: '#F5F0FF', fontFamily: 'Inter_700Bold', letterSpacing: 0.5, marginTop: -14 },
+  taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  taglineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F59E0B' },
+  tagline: { fontSize: 12, color: '#8B85B0', fontFamily: 'Inter_400Regular', letterSpacing: 0.5 },
 
   card: {
     backgroundColor: '#110E2E', borderRadius: 24,

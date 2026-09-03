@@ -82,6 +82,12 @@ export default function LoginScreen() {
               style={styles.logo}
               resizeMode="contain"
             />
+            <Text style={styles.appName}>CoinClash</Text>
+            <View style={styles.taglineRow}>
+              <View style={styles.taglineDot} />
+              <Text style={styles.tagline}>Play. Compete. Win.</Text>
+              <View style={styles.taglineDot} />
+            </View>
           </View>
 
           {/* ── Card ──────────────────────────────── */}
@@ -180,8 +186,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   scroll: { flexGrow: 1, paddingHorizontal: 24 },
-  logoArea: { alignItems: 'center', marginBottom: 24 },
-  logo: { width: 280, height: 160 },
+  logoArea: { alignItems: 'center', marginBottom: 16, gap: 4 },
+  logo: { width: 220, height: 220 },
+  appName: { fontSize: 32, fontWeight: '800', color: '#F5F0FF', fontFamily: 'Inter_700Bold', letterSpacing: 0.5, marginTop: -16 },
+  taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  taglineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F59E0B' },
+  tagline: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular', letterSpacing: 0.5 },
 
   card: {
     backgroundColor: '#110E2E',
