@@ -135,15 +135,7 @@ export default function SignupScreen() {
 
           {/* ── Logo ──────────────────────────── */}
           <View style={styles.logoArea}>
-            <View style={styles.logoRing}>
-              <Image source={require('@/assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
-            </View>
-            <Text style={styles.appName}>CoinClash</Text>
-            <View style={styles.taglineRow}>
-              <View style={styles.taglineDot} />
-              <Text style={styles.tagline}>Play Smart. Win Real.</Text>
-              <View style={styles.taglineDot} />
-            </View>
+            <Image source={require('@/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
           </View>
 
           {/* ── Card ──────────────────────────── */}
@@ -298,20 +290,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#110E2E', borderWidth: 1, borderColor: '#2A2550',
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  logoArea: { alignItems: 'center', marginBottom: 24, gap: 8 },
-  logoRing: {
-    width: 90, height: 90, borderRadius: 45,
-    borderWidth: 1.5, borderColor: '#F59E0B40',
-    backgroundColor: '#0D0829',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35, shadowRadius: 18, elevation: 10,
-  },
-  logo: { width: 74, height: 74, borderRadius: 37 },
-  appName: { fontSize: 28, fontWeight: '800', color: '#F5F0FF', fontFamily: 'Inter_700Bold', letterSpacing: 0.4 },
-  taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  taglineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F59E0B' },
-  tagline: { fontSize: 12, color: '#8B85B0', fontFamily: 'Inter_400Regular', letterSpacing: 0.3 },
+  logoArea: { alignItems: 'center', marginBottom: 16 },
+  logo: { width: 260, height: 148 },
 
   card: {
     backgroundColor: '#110E2E', borderRadius: 24,

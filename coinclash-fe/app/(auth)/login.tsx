@@ -77,19 +77,11 @@ export default function LoginScreen() {
         >
           {/* ── Logo area ─────────────────────────── */}
           <View style={styles.logoArea}>
-            <View style={styles.logoRing}>
-              <Image
-                source={require('@/assets/images/icon.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.appName}>CoinClash</Text>
-            <View style={styles.taglineRow}>
-              <View style={styles.taglineDot} />
-              <Text style={styles.tagline}>Play Smart. Win Real.</Text>
-              <View style={styles.taglineDot} />
-            </View>
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
 
           {/* ── Card ──────────────────────────────── */}
@@ -188,33 +180,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   scroll: { flexGrow: 1, paddingHorizontal: 24 },
-  logoArea: { alignItems: 'center', marginBottom: 32, gap: 10 },
-  logoRing: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 1.5,
-    borderColor: '#F59E0B40',
-    backgroundColor: '#0D0829',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  logo: { width: 90, height: 90, borderRadius: 45 },
-  appName: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: '#F5F0FF',
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: 0.5,
-  },
-  taglineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  taglineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#F59E0B' },
-  tagline: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular', letterSpacing: 0.3 },
+  logoArea: { alignItems: 'center', marginBottom: 24 },
+  logo: { width: 280, height: 160 },
 
   card: {
     backgroundColor: '#110E2E',
