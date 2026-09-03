@@ -5,6 +5,14 @@ import { api } from '@/lib/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef } from 'react';
 
+export interface FinishExtra {
+  playerAcc?: string;
+  aiAcc?: string;
+  playerTimeMs?: number;
+  aiTimeMs?: number;
+  tieBreaker?: 'accuracy' | 'time' | 'forfeit';
+}
+
 export function useGameFinish(stake: number, gameType = 'play') {
   const { addCoins, addTransaction, syncFromServer } = useWallet();
   const { addGameResult } = useGame();
@@ -15,7 +23,7 @@ export function useGameFinish(stake: number, gameType = 'play') {
   const hasFinished = useRef(false);
 
   const finish = useCallback(
-    (won: boolean, playerVal: number, aiVal: number, unit: string = 'ms') => {
+    (won: boolean, playerVal: number, aiVal: number, unit: string = 'ms', extra?: FinishExtra) => {
       if (hasFinished.current) return;
       hasFinished.current = true;
 
@@ -53,6 +61,11 @@ export function useGameFinish(stake: number, gameType = 'play') {
           stake: tournamentId ? '0' : String(stake),
           unit,
           tournamentId: tournamentId ? String(tournamentId) : undefined,
+          playerAcc: extra?.playerAcc ?? '',
+          aiAcc: extra?.aiAcc ?? '',
+          playerTimeMs: extra?.playerTimeMs ? String(extra.playerTimeMs) : '',
+          aiTimeMs: extra?.aiTimeMs ? String(extra.aiTimeMs) : '',
+          tieBreaker: extra?.tieBreaker ?? '',
         },
       });
     },

@@ -26,6 +26,11 @@ export default function ResultScreen() {
     stake: string;
     unit: string;
     tournamentId: string;
+    playerAcc?: string;
+    aiAcc?: string;
+    playerTimeMs?: string;
+    aiTimeMs?: string;
+    tieBreaker?: string;
   }>();
 
   const tournamentId = params.tournamentId;
@@ -39,6 +44,12 @@ export default function ResultScreen() {
   const prize = parseInt(params.prize ?? '0', 10);
   const unit = params.unit ?? 'ms';
   const netChange = won ? prize - stake : -stake;
+
+  const playerAcc = params.playerAcc || '';
+  const aiAcc = params.aiAcc || '';
+  const playerTimeMs = params.playerTimeMs ? parseInt(params.playerTimeMs, 10) : (unit === 'ms' ? playerVal : 0);
+  const aiTimeMs = params.aiTimeMs ? parseInt(params.aiTimeMs, 10) : (unit === 'ms' ? opponentVal : 0);
+  const tieBreaker = params.tieBreaker || '';
 
   const containerScale = useSharedValue(0.8);
   const containerOpacity = useSharedValue(0);
@@ -72,7 +83,7 @@ export default function ResultScreen() {
     ? (won ? ['#3B0764', colors.background] : ['#4C1D95', colors.background])
     : (won ? ['#052E16', colors.background] : ['#1C0A0A', colors.background]);
 
-  // Flexible display based on unit
+  // Format values
   const formatVal = (v: number) => {
     if (unit === 'ms') return `${(v / 1000).toFixed(2)}s`;
     if (unit === 'err') return `${v} err`;
@@ -81,42 +92,64 @@ export default function ResultScreen() {
     return String(v);
   };
 
-  const valueLabel = unit === 'ms' ? 'time' : unit === 'err' ? 'error' : 'score';
+  const formatTime = (ms: number) => {
+    if (ms === 0 || ms >= 99999) return '—';
+    return `${(ms / 1000).toFixed(2)}s`;
+  };
 
   const getSubtitle = () => {
+    if (playerVal === 99999 || playerVal === 999) {
+      return '⚠️ Match Forfeited — Early exit resulted in automatic loss';
+    }
+    if (tieBreaker === 'accuracy') {
+      return won
+        ? `🎯 Won by Higher Accuracy! (${playerAcc} vs ${aiAcc})`
+        : `❌ Opponent had Higher Accuracy (${aiAcc} vs ${playerAcc})`;
+    }
+    if (tieBreaker === 'time' || (playerTimeMs > 0 && aiTimeMs > 0 && playerTimeMs < 99999)) {
+      const diffSec = (Math.abs(aiTimeMs - playerTimeMs) / 1000).toFixed(2);
+      if (won) {
+        return `⚡ Accuracy Tied! Won by faster Time (${diffSec}s faster)`;
+      } else {
+        return `⌛ Accuracy Tied! Opponent was ${diffSec}s faster`;
+      }
+    }
     if (unit === 'ms') {
       if (!won && playerVal === 0) return 'You tapped too early';
       const diffSec = (Math.abs(opponentVal - playerVal) / 1000).toFixed(2);
-      return won
-        ? `⚡ Fast finish! You were ${diffSec}s faster!`
-        : `⌛ Opponent was ${diffSec}s faster!`;
+      return won ? `⚡ Fast finish! You were ${diffSec}s faster!` : `⌛ Opponent was ${diffSec}s faster!`;
     }
     if (unit === 'err') {
-      return won ? 'You were more accurate!' : 'Your opponent was more accurate';
+      return won ? `🎯 More Accurate! (${playerVal} err vs ${opponentVal} err)` : `❌ Opponent was more accurate`;
     }
     const diff = Math.abs(playerVal - opponentVal);
-    return won
-      ? `You scored ${diff} more point${diff !== 1 ? 's' : ''}`
-      : `Opponent scored ${diff} more point${diff !== 1 ? 's' : ''}`;
+    return won ? `You scored ${diff} more point${diff !== 1 ? 's' : ''}` : `Opponent scored ${diff} more point${diff !== 1 ? 's' : ''}`;
   };
 
   const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     gradient: { flex: 1, paddingTop: topPad + 16 },
-    hero: { alignItems: 'center', paddingHorizontal: 30, paddingTop: 30, paddingBottom: 20, gap: 12 },
-    iconCircle: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
-    resultTitle: { fontSize: 36, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
-    resultSub: { fontSize: 16, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-    netChange: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', marginTop: 4 },
-    stats: { margin: 20, backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 16 },
+    hero: { alignItems: 'center', paddingHorizontal: 30, paddingTop: 20, paddingBottom: 16, gap: 10 },
+    iconCircle: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center' },
+    resultTitle: { fontSize: 34, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+    resultSub: { fontSize: 15, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', textAlign: 'center', lineHeight: 22 },
+    netChange: { fontSize: 22, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', marginTop: 2 },
+    stats: { margin: 16, backgroundColor: colors.card, borderRadius: colors.radius, borderWidth: 1, borderColor: colors.border, padding: 18, gap: 14 },
+    
+    badgeRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 4 },
+    badgeChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+    badgeText: { fontSize: 11, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+
+    timingRow: { flexDirection: 'row', gap: 10 },
+    timingCard: { flex: 1, backgroundColor: colors.background, borderRadius: 12, padding: 12, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: colors.border },
+    timingHeader: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 },
+    timingLabel: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+    timingValue: { fontSize: 18, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+
     statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     statLabel: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
     statVal: { fontSize: 14, fontWeight: '600' as const, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
     divider: { height: 1, backgroundColor: colors.border },
-    timingRow: { flexDirection: 'row', gap: 12 },
-    timingCard: { flex: 1, backgroundColor: colors.background, borderRadius: 12, padding: 14, alignItems: 'center', gap: 4 },
-    timingLabel: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-    timingValue: { fontSize: 20, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
     buttons: { paddingHorizontal: 20, paddingBottom: bottomPad + 20, gap: 12, marginTop: 'auto' as any },
     primaryBtn: { borderRadius: colors.radius, overflow: 'hidden' },
     primaryBtnInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 },
@@ -130,7 +163,7 @@ export default function ResultScreen() {
       <LinearGradient colors={bgColors} style={styles.gradient}>
         <Animated.View style={[styles.hero, heroAnimStyle]}>
           <View style={[styles.iconCircle, { backgroundColor: (won ? colors.accent : colors.destructive) + '20' }]}>
-            <Ionicons name={won ? 'trophy' : 'close-circle'} size={52} color={won ? colors.accent : colors.destructive} />
+            <Ionicons name={won ? 'trophy' : 'close-circle'} size={48} color={won ? colors.accent : colors.destructive} />
           </View>
           <Text style={[styles.resultTitle, { color: won ? colors.accent : colors.destructive }]}>
             {won ? 'You Won!' : 'You Lost'}
@@ -158,17 +191,48 @@ export default function ResultScreen() {
         </Animated.View>
 
         <Animated.View style={[styles.stats, statsAnimStyle]}>
+          {/* Priority Grading Badges */}
+          <View style={styles.badgeRow}>
+            <View style={[styles.badgeChip, { borderColor: colors.gold + '50', backgroundColor: colors.gold + '15' }]}>
+              <Ionicons name="ribbon" size={12} color={colors.gold} />
+              <Text style={[styles.badgeText, { color: colors.gold }]}>1st Priority: Accuracy</Text>
+            </View>
+            <View style={[styles.badgeChip, { borderColor: colors.primary + '50', backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="stopwatch" size={12} color={colors.primary} />
+              <Text style={[styles.badgeText, { color: colors.primary }]}>2nd Priority: Time</Text>
+            </View>
+          </View>
+
+          {/* 1st Priority: Accuracy Comparison */}
+          {playerAcc && aiAcc ? (
+            <View style={styles.timingRow}>
+              <View style={styles.timingCard}>
+                <Text style={styles.timingHeader}>Your Accuracy</Text>
+                <Text style={[styles.timingValue, { color: won ? colors.accent : colors.destructive }]}>
+                  {playerAcc}
+                </Text>
+              </View>
+              <View style={styles.timingCard}>
+                <Text style={styles.timingHeader}>Opponent Acc.</Text>
+                <Text style={[styles.timingValue, { color: won ? colors.destructive : colors.accent }]}>
+                  {aiAcc}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* 2nd Priority: Timing / Speed Comparison */}
           <View style={styles.timingRow}>
             <View style={styles.timingCard}>
-              <Text style={styles.timingLabel}>Your {valueLabel}</Text>
+              <Text style={styles.timingHeader}>Your Time</Text>
               <Text style={[styles.timingValue, { color: won ? colors.accent : colors.destructive }]}>
-                {playerVal === 0 && unit === 'ms' ? '—' : formatVal(playerVal)}
+                {playerTimeMs > 0 ? formatTime(playerTimeMs) : (playerVal === 0 && unit === 'ms' ? '—' : formatVal(playerVal))}
               </Text>
             </View>
             <View style={styles.timingCard}>
-              <Text style={styles.timingLabel}>Opponent</Text>
+              <Text style={styles.timingHeader}>Opponent Time</Text>
               <Text style={[styles.timingValue, { color: won ? colors.destructive : colors.accent }]}>
-                {formatVal(opponentVal)}
+                {aiTimeMs > 0 ? formatTime(aiTimeMs) : formatVal(opponentVal)}
               </Text>
             </View>
           </View>
@@ -220,12 +284,10 @@ export default function ResultScreen() {
               </LinearGradient>
             </Pressable>
           </View>
-          {!isTourney && (
-            <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/(tabs)')}>
-              <Ionicons name="home-outline" size={16} color={colors.mutedForeground} />
-              <Text style={styles.secondaryBtnText}>Go Home</Text>
-            </Pressable>
-          )}
+
+          <Pressable style={styles.secondaryBtn} onPress={() => router.replace('/(tabs)/lobby')}>
+            <Text style={styles.secondaryBtnText}>Back to Lobby</Text>
+          </Pressable>
         </View>
       </LinearGradient>
     </View>

@@ -115,7 +115,14 @@ export default function NumberCatchScreen() {
           (totalErr === aiTotalError.current && totalTime < aiTime.current);
 
         setPhase('done');
-        finish(won, totalTime, aiTime.current, 'ms');
+        const tieBreaker = totalErr !== aiTotalError.current ? 'accuracy' : 'time';
+        finish(won, totalTime, aiTime.current, 'ms', {
+          playerAcc: `${totalErr} err`,
+          aiAcc: `${aiTotalError.current} err`,
+          playerTimeMs: totalTime,
+          aiTimeMs: aiTime.current,
+          tieBreaker,
+        });
       } else {
         setRoundIdx((r) => r + 1);
         setCounter(1);

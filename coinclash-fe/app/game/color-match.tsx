@@ -84,12 +84,18 @@ export default function ColorMatchScreen() {
         setFeedback(null);
         if (roundIdx + 1 >= ROUNDS) {
           const totalTime = Date.now() - startTime.current;
-          // Tie breaker: higher score first, or faster total time
           const won =
             newCorrect > aiCorrect.current ||
             (newCorrect === aiCorrect.current && totalTime < aiTime.current);
+          const tieBreaker = newCorrect !== aiCorrect.current ? 'accuracy' : 'time';
 
-          finish(won, totalTime, aiTime.current, 'ms');
+          finish(won, totalTime, aiTime.current, 'ms', {
+            playerAcc: `${newCorrect}/${ROUNDS}`,
+            aiAcc: `${aiCorrect.current}/${ROUNDS}`,
+            playerTimeMs: totalTime,
+            aiTimeMs: aiTime.current,
+            tieBreaker,
+          });
         } else {
           setRoundIdx((r) => r + 1);
           roundStartTime.current = Date.now();

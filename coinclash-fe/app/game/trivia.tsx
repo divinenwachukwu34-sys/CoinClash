@@ -80,8 +80,15 @@ export default function TriviaScreen() {
           const won =
             newCorrect > aiCorrect.current ||
             (newCorrect === aiCorrect.current && totalTime < aiTime.current);
+          const tieBreaker = newCorrect !== aiCorrect.current ? 'accuracy' : 'time';
 
-          finish(won, totalTime, aiTime.current, 'ms');
+          finish(won, totalTime, aiTime.current, 'ms', {
+            playerAcc: `${newCorrect}/${ROUNDS}`,
+            aiAcc: `${aiCorrect.current}/${ROUNDS}`,
+            playerTimeMs: totalTime,
+            aiTimeMs: aiTime.current,
+            tieBreaker,
+          });
         } else {
           setRoundIdx((r) => r + 1);
           roundStartTime.current = Date.now();
