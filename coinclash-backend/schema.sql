@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     coin_balance INTEGER DEFAULT 0,
+    referral_code VARCHAR(20) UNIQUE,
     paystack_customer_code VARCHAR(255),
     reserved_bank_name VARCHAR(255),
     reserved_account_number VARCHAR(50),

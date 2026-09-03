@@ -47,13 +47,31 @@ async def get_user_by_username(username: str) -> Optional[dict]:
         row = await conn.fetchrow('SELECT * FROM users WHERE username = $1', username)
         return dict(row) if row else None
 
+async def _generate_unique_referral_code(conn) -> str:
+    """Generate a secure 8-char alphanumeric referral code guaranteed to be unique."""
+    import secrets, string
+    chars = string.ascii_uppercase + string.digits
+    # Remove ambiguous chars: O, 0, I, 1
+    chars = chars.replace('O','').replace('0','').replace('I','').replace('1','')
+    while True:
+        code = ''.join(secrets.choice(chars) for _ in range(8))
+        exists = await conn.fetchval('SELECT 1 FROM users WHERE referral_code = $1', code)
+        if not exists:
+            return code
+
 async def create_user(email: str, username: str, password_hash: str) -> dict:
     async with pool.acquire() as conn:
+        referral_code = await _generate_unique_referral_code(conn)
         row = await conn.fetchrow(
-            'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3) RETURNING *',
-            email, username, password_hash
+            'INSERT INTO users (email, username, password_hash, referral_code) VALUES ($1, $2, $3, $4) RETURNING *',
+            email, username, password_hash, referral_code
         )
         return dict(row)
+
+async def get_user_by_referral_code(code: str) -> dict | None:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT * FROM users WHERE referral_code = $1', code.strip().upper())
+        return dict(row) if row else None
 
 async def update_user_reserved_account(user_id: int, customer_code: str, bank_name: str, account_number: str, account_name: str):
     async with pool.acquire() as conn:

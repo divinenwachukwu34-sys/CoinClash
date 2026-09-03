@@ -78,7 +78,30 @@ async def signup(data: RegisterRequest):
         logger.error(f"Failed to provision DVA on signup for {data.email}: {e}")
 
     token = jwt.encode({"userId": user["id"], "email": user["email"]}, JWT_SECRET, algorithm="HS256")
-    return {"token": token, "user": {"id": user["id"], "email": user["email"], "username": user["username"], "coinBalance": user["coin_balance"]}}
+
+    # Process referral code if provided
+    referral_message = None
+    if data.referral_code:
+        code = data.referral_code.strip().upper()
+        referrer = await database.get_user_by_referral_code(code)
+        if referrer and referrer["id"] != user["id"] and referrer["email"].lower() != data.email.lower():
+            try:
+                async with database.pool.acquire() as conn:
+                    existing = await conn.fetchrow('SELECT 1 FROM referrals WHERE referred_id = $1', user["id"])
+                    if not existing:
+                        await conn.execute(
+                            'INSERT INTO referrals (referrer_id, referred_id, bonus_paid) VALUES ($1, $2, FALSE)',
+                            referrer["id"], user["id"]
+                        )
+                        referral_message = f"Referral code applied! You and {referrer['username']} will each receive bonus coins on your first deposit 🎉"
+            except Exception as e:
+                logger.error(f"Failed to apply referral code on signup: {e}")
+
+    return {
+        "token": token,
+        "user": {"id": user["id"], "email": user["email"], "username": user["username"], "coinBalance": user["coin_balance"]},
+        "referralMessage": referral_message,
+    }
 
 @router.post("/login")
 async def login(data: LoginRequest):
