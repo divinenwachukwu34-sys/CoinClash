@@ -89,8 +89,20 @@ async def signup(data: RegisterRequest):
             dva["account_number"],
             dva["account_name"]
         )
+        user = await database.get_user_by_id(user["id"])
     except Exception as e:
         logger.error(f"[DVA] Failed to provision dedicated account for {data.email}. Reason: {e}")
+
+    # Add welcome notification
+    try:
+        await database.create_notification(
+            user["id"],
+            "🎉 Welcome to CoinClash!",
+            "Your account is ready! Claim your daily bonus in the lobby and enter matches to start winning.",
+            "welcome"
+        )
+    except Exception:
+        pass
 
     # Fetch updated user details after possible DVA creation
     updated_user = await database.get_user_by_id(user["id"]) or user

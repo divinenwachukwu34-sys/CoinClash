@@ -240,3 +240,43 @@ async def record_owner_transfer(amount_ngn: float, reference: str):
             "INSERT INTO owner_transfers (amount_ngn, reference, status) VALUES ($1, $2, 'success')",
             amount_ngn, reference
         )
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+async def create_notification(user_id: int, title: str, message: str, notif_type: str = 'system') -> dict:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            '''INSERT INTO notifications (user_id, title, message, type)
+               VALUES ($1, $2, $3, $4) RETURNING *''',
+            user_id, title, message, notif_type
+        )
+        return dict(row)
+
+async def get_user_notifications(user_id: int, limit: int = 30) -> dict:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            '''SELECT id, title, message, type, is_read, created_at
+               FROM notifications WHERE user_id = $1
+               ORDER BY created_at DESC LIMIT $2''',
+            user_id, limit
+        )
+        unread = await conn.fetchval(
+            'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+            user_id
+        )
+        return {
+            'notifications': [dict(r) for r in rows],
+            'unreadCount': int(unread or 0)
+        }
+
+async def mark_notifications_read(user_id: int, notif_id: Optional[int] = None) -> bool:
+    async with pool.acquire() as conn:
+        if notif_id:
+            await conn.execute('UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND id = $2', user_id, notif_id)
+        else:
+            await conn.execute('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', user_id)
+        return True
+
+async def clear_user_notifications(user_id: int) -> bool:
+    async with pool.acquire() as conn:
+        await conn.execute('DELETE FROM notifications WHERE user_id = $1', user_id)
+        return True

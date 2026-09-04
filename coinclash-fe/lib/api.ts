@@ -25,6 +25,15 @@ async function request<T = any>(
   return data as T;
 }
 
+export interface NotificationItem {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export const api = {
   // Auth
   signup: (email: string, username: string, password: string, phone?: string, referral_code?: string) =>
@@ -34,6 +43,14 @@ export const api = {
   login: (email: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: (token: string) => request<User>('/auth/me', {}, token),
+
+  // Notifications
+  getNotifications: (token: string) =>
+    request<{ notifications: NotificationItem[]; unreadCount: number }>('/notifications', {}, token),
+  markNotificationsRead: (notification_id?: number, token?: string) =>
+    request<{ success: boolean }>('/notifications/read', { method: 'POST', body: JSON.stringify({ notification_id }) }, token),
+  clearNotifications: (token: string) =>
+    request<{ success: boolean }>('/notifications/clear', { method: 'DELETE' }, token),
 
   // Payment
   initPayment: (amount_ngn: number, token: string) =>

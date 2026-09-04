@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db, close_db
 
 # Mount routers
-from routers import health, auth, payment, banks, withdrawal, game, profile, bonus, referral, leaderboard, admin, tournament
+from routers import health, auth, payment, banks, withdrawal, game, profile, bonus, referral, leaderboard, admin, tournament, notifications
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,6 +40,7 @@ app.include_router(referral.router, prefix="/api/referral", tags=["referral"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(tournament.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 
 
 if __name__ == "__main__":

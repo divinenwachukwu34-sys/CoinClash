@@ -15,6 +15,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useNotifications } from '@/context/NotificationContext';
+import { NotificationModal } from '@/components/NotificationModal';
+import { Ionicons } from '@expo/vector-icons';
+import { Pressable } from 'react-native';
+
 const TIERS = [
   { stake: 0, tier: 'Practice', waiting: Math.floor(Math.random() * 10) + 5 },
   { stake: 10, tier: 'Rookie', waiting: Math.floor(Math.random() * 8) + 3 },
@@ -29,6 +34,8 @@ export default function LobbyScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { coins } = useWallet();
+  const { unreadCount } = useNotifications();
+  const [notifModalVisible, setNotifModalVisible] = React.useState(false);
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   const handlePlay = (stake: number) => {
@@ -52,6 +59,9 @@ export default function LobbyScreen() {
       paddingHorizontal: 20,
       paddingBottom: 24,
     },
+    notifBtn: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    badgeDot: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.accent, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.background },
+    badgeDotText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
     title: {
       fontSize: 28,
       fontWeight: '700' as const,
@@ -136,12 +146,26 @@ export default function LobbyScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#0D0A1F', colors.background]} style={styles.header}>
-        <Text style={styles.title}>Game Lobby</Text>
-        <Text style={styles.subtitle}>Pick a stake, choose a game, beat your opponent</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Game Lobby</Text>
+            <Text style={styles.subtitle}>Pick a stake, choose a game, beat your opponent</Text>
+          </View>
+          <Pressable style={styles.notifBtn} onPress={() => setNotifModalVisible(true)}>
+            <Ionicons name="notifications-outline" size={20} color={colors.foreground} />
+            {unreadCount > 0 && (
+              <View style={styles.badgeDot}>
+                <Text style={styles.badgeDotText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
         <View style={styles.balancePill}>
           <Text style={styles.balanceText}>Balance: {coins} coins</Text>
         </View>
       </LinearGradient>
+
+      <NotificationModal visible={notifModalVisible} onClose={() => setNotifModalVisible(false)} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionLabel}>How it works</Text>

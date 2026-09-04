@@ -89,6 +89,15 @@ async def create_reserved_account(data: ReservedAccountRequest = None, current_u
             dva["account_number"], 
             dva["account_name"]
         )
+        try:
+            await database.create_notification(
+                user["id"],
+                "🏦 Bank Account Ready!",
+                f"Your reserved {dva['bank']['name']} account ({dva['account_number']}) is active for instant deposits.",
+                "bank"
+            )
+        except Exception:
+            pass
         return {
             "bankName": dva["bank"]["name"],
             "accountNumber": dva["account_number"],
@@ -123,6 +132,16 @@ async def verify_payment(data: VerifyRequest, current_user: dict = Depends(get_c
         await database.add_coins_to_user(tx["user_id"], coins, data.reference, amount_ngn)
         await database.update_transaction_status(data.reference, "success")
         
+        try:
+            await database.create_notification(
+                tx["user_id"],
+                "💰 Deposit Confirmed",
+                f"Your deposit of ₦{amount_ngn:,.2f} was successful! +{coins} coins added to your wallet.",
+                "deposit"
+            )
+        except Exception:
+            pass
+
         # Check for referral bonus
         async with database.pool.acquire() as conn:
             ref = await conn.fetchrow('SELECT * FROM referrals WHERE referred_id = $1 AND bonus_paid = FALSE', tx["user_id"])

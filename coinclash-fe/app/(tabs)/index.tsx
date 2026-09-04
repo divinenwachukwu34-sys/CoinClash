@@ -25,6 +25,9 @@ function getLevelInfo(totalGames: number) {
   return { label: 'Rookie', color: '#6B7280', icon: '🎮' };
 }
 
+import { useNotifications } from '@/context/NotificationContext';
+import { NotificationModal } from '@/components/NotificationModal';
+
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -32,6 +35,8 @@ export default function HomeScreen() {
   const { coins, syncFromServer, addTransaction } = useWallet();
   const { stats, gameHistory } = useGame();
   const { user, token } = useAuth();
+  const { unreadCount } = useNotifications();
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   const [bonus, setBonus] = useState<BonusStatus | null>(null);
@@ -120,10 +125,17 @@ export default function HomeScreen() {
               )}
             </View>
           </View>
-          <Pressable style={s.notifBtn} onPress={() => router.push('/(tabs)/profile')}>
-            <Ionicons name="person-outline" size={18} color={colors.mutedForeground} />
+          <Pressable style={s.notifBtn} onPress={() => setNotifModalVisible(true)}>
+            <Ionicons name="notifications-outline" size={20} color={colors.foreground} />
+            {unreadCount > 0 && (
+              <View style={s.badgeDot}>
+                <Text style={s.badgeDotText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
+
+        <NotificationModal visible={notifModalVisible} onClose={() => setNotifModalVisible(false)} />
 
         {/* Balance Card */}
         <View style={s.balanceCard}>
@@ -315,7 +327,9 @@ function makeStyles(colors: any, topPad: number) {
     levelText: { fontSize: 11, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
     streakPill: { backgroundColor: '#F59E0B20', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 4 },
     streakPillText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#F59E0B' },
-    notifBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+    notifBtn: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    badgeDot: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.accent, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.background },
+    badgeDotText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
 
     balanceCard: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     balanceLabel: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', letterSpacing: 0.5, textTransform: 'uppercase' },

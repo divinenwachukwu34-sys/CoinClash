@@ -21,6 +21,15 @@ async def claim_bonus(current_user: dict = Depends(get_current_user)):
     bonus_coins = 10
     ref = f"bonus_{uuid.uuid4()}"
     new_balance = await database.add_coins_to_user(current_user["userId"], bonus_coins, ref, 0)
+    try:
+        await database.create_notification(
+            current_user["userId"],
+            "🎁 Daily Bonus Claimed!",
+            f"You received +{bonus_coins} bonus coins for claiming your daily bonus!",
+            "bonus"
+        )
+    except Exception:
+        pass
     return {
         "claimed": True,
         "coinsAwarded": bonus_coins,

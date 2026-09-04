@@ -101,6 +101,8 @@ function WebContainer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+import { NotificationProvider } from '@/context/NotificationContext';
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
@@ -117,19 +119,21 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <WalletProvider>
-              <GameProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <WebContainer>
-                      <AuthGuard>
-                        <RootLayoutNav />
-                      </AuthGuard>
-                    </WebContainer>
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </GameProvider>
-            </WalletProvider>
+            <NotificationProvider>
+              <WalletProvider>
+                <GameProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      <WebContainer>
+                        <AuthGuard>
+                          <RootLayoutNav />
+                        </AuthGuard>
+                      </WebContainer>
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </GameProvider>
+              </WalletProvider>
+            </NotificationProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
