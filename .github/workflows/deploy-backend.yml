@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'coinclash-backend/**'
+      - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
 jobs:
@@ -38,7 +39,6 @@ jobs:
           exclude: |
             .git/**
             .github/**
-            coinclash-backend/.env
 
       - name: Rebuild and restart backend
         uses: appleboy/ssh-action@v1.0.3
@@ -51,6 +51,7 @@ jobs:
             set -e
             cd ${{ secrets.VPS_TARGET_DIR }}/coinclash-backend
             echo "=== Starting backend deployment ==="
+            touch .env
             echo "Building Docker image..."
             docker compose build
             echo "Starting containers..."
