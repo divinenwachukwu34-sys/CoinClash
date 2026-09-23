@@ -18,6 +18,7 @@ def decode_token(token: str):
         return None
 
 @router.websocket("/ws/match")
+@router.websocket("/api/ws/match")
 async def websocket_matchmaking_endpoint(
     websocket: WebSocket,
     token: str = Query(...),

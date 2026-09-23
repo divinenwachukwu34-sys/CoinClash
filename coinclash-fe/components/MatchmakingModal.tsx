@@ -144,11 +144,11 @@ export function MatchmakingModal({
                     <Text style={[s.botTitle, { color: colors.gold }]}>Taking a while?</Text>
                   </View>
                   <Text style={[s.botDesc, { color: colors.mutedForeground }]}>
-                    You can duel a calibrated Medium AI bot now or continue searching for real players.
+                    Duel an AI bot instantly or continue searching for real players.
                   </Text>
                   <Pressable style={s.botBtn} onPress={onPlayBot}>
                     <LinearGradient colors={['#D97706', '#B45309']} style={s.botBtnInner}>
-                      <Text style={s.botBtnText}>Play Medium Bot Now</Text>
+                      <Text style={s.botBtnText}>PLAY WITH BOT</Text>
                     </LinearGradient>
                   </Pressable>
                 </View>

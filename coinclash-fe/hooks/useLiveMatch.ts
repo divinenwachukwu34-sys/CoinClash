@@ -30,7 +30,7 @@ export function useLiveMatch(gameType: string, stake: number) {
   const [matchState, setMatchState] = useState<MatchState>({
     status: isPractice ? 'offline_ai' : 'idle',
     roomId: null,
-    opponentUsername: isPractice ? 'Medium Bot' : '',
+    opponentUsername: isPractice ? 'Bot Player' : '',
     opponentId: null,
     opponentProgress: 0,
     opponentScore: 0,
@@ -46,7 +46,7 @@ export function useLiveMatch(gameType: string, stake: number) {
       setMatchState({
         status: 'offline_ai',
         roomId: null,
-        opponentUsername: 'Medium Bot',
+        opponentUsername: 'Bot Player',
         opponentId: null,
         opponentProgress: 0,
         opponentScore: 0,

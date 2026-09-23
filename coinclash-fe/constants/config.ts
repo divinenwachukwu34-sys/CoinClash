@@ -9,8 +9,8 @@ export const RAW_API_URL = cleanUrl;
  * Returns a WebSocket URL based on the API_BASE_URL, replacing http(s) with ws(s).
  */
 export const getWsUrl = (path: string): string => {
-  const wsProtocol = API_BASE_URL.startsWith('https') ? 'wss' : 'ws';
-  const baseUrl = API_BASE_URL.replace(/^https?/, wsProtocol);
+  const wsProtocol = RAW_API_URL.startsWith('https') ? 'wss' : 'ws';
+  const baseUrl = RAW_API_URL.replace(/^https?/, wsProtocol);
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${baseUrl}${cleanPath}`;
 };

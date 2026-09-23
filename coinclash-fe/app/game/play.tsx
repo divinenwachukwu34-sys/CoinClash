@@ -124,7 +124,7 @@ export default function PlayScreen() {
           opponentTime: String(opponentTime),
           prize: String(prize),
           stake: String(stake),
-          opponentName: matchState.opponentUsername || (isPractice ? 'Medium Bot' : 'Opponent'),
+          opponentName: matchState.opponentUsername || (isPractice ? 'Bot Player' : 'Opponent'),
         },
       });
     },
