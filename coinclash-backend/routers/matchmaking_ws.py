@@ -31,11 +31,13 @@ async def websocket_matchmaking_endpoint(
         return
 
     user_id = user_payload.get("userId")
-    username = user_payload.get("username", f"Player_{user_id}")
+    user_record = await database.get_user_by_id(user_id)
+    username = (user_record.get("username") if user_record else None) or user_payload.get("username") or f"Player_{user_id}"
 
     await websocket.accept()
 
     try:
+        logger.info(f"[WS MATCHMAKING] User {username} (ID: {user_id}) joined queue for {game} @ {stake} coins")
         # 1. Join matchmaking queue or get matched room
         room = await hub.add_player(game_type=game, stake=stake, user_id=user_id, username=username, ws=websocket)
 
