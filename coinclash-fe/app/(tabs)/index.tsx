@@ -338,19 +338,19 @@ export default function HomeScreen() {
               </LinearGradient>
             </Pressable>
 
-            {/* Secondary Challenge Card */}
+            {/* Secondary Challenge Card -> Referral Program */}
             <Pressable
               style={[s.quickCard, s.quickCardSecondary]}
-              onPress={() => router.push('/game/select')}
+              onPress={() => router.push('/(tabs)/profile')}
             >
               <View style={s.quickCardInner}>
                 <View style={[s.quickIconCircle, { backgroundColor: colors.accent + '20' }]}>
-                  <Ionicons name="people" size={24} color={colors.accent} />
+                  <Ionicons name="gift" size={24} color={colors.accent} />
                 </View>
                 <Text style={s.quickCardTitleSecondary}>Challenge Friend</Text>
-                <Text style={s.quickCardSubSecondary}>Play directly against someone</Text>
+                <Text style={s.quickCardSubSecondary}>Invite friend & earn +25 bonus coins</Text>
                 <View style={[s.quickCtaPill, { backgroundColor: colors.accent + '20' }]}>
-                  <Text style={[s.quickCtaText, { color: colors.accent }]}>Invite →</Text>
+                  <Text style={[s.quickCtaText, { color: colors.accent }]}>Invite & Earn →</Text>
                 </View>
               </View>
             </Pressable>
