@@ -7,8 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db, close_db
 
-# Mount routers
-from routers import health, auth, payment, banks, withdrawal, game, profile, bonus, referral, leaderboard, admin, tournament, notifications
+from routers import health, auth, payment, banks, withdrawal, game, profile, bonus, referral, leaderboard, admin, tournament, notifications, matchmaking_ws
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,7 +21,14 @@ app = FastAPI(lifespan=lifespan, title="CoinClash Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://coinclash.app",
+        "https://www.coinclash.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://coinclash.saverr.tech",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,6 +47,7 @@ app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderb
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(tournament.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
+app.include_router(matchmaking_ws.router, tags=["matchmaking"])
 
 
 if __name__ == "__main__":
