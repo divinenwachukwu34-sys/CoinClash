@@ -226,21 +226,19 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* ── Stats ────────────────────────────────────────────────── */}
+        {/* ── Player Status & Rewards Showcase ──────────────────────── */}
         <View>
-          <Text style={s.sectionTitle}>Statistics</Text>
+          <Text style={s.sectionTitle}>Player Status & Rewards</Text>
           <View style={s.statsGrid}>
             {[
-              { val: stats.wins,   label: 'Wins',        color: colors.accent      },
-              { val: stats.losses, label: 'Losses',      color: colors.destructive },
-              { val: `${winRate}%`,label: 'Win Rate',    color: colors.primary     },
-              { val: stats.bestTime ? `${stats.bestTime}ms` : '—', label: 'Best Time', color: colors.gold },
-              { val: totalGames,   label: 'Total Games', color: colors.foreground  },
-              { val: coins,        label: 'Coins',       color: colors.gold, isCoin: true },
+              { val: level.label,  label: 'Combat Tier',      color: level.color, icon: 'crown' },
+              { val: `+${stats.wins * 25}`, label: 'Coins Won',   color: colors.gold, icon: 'circle-multiple' },
+              { val: `${streak} Days`, label: 'Daily Streak', color: '#F59E0B', icon: 'fire' },
+              { val: `${coins}`,   label: 'Wallet Balance',   color: colors.accent, icon: 'wallet' },
             ].map((item) => (
               <View key={item.label} style={s.statCard}>
-                {item.isCoin && <MaterialCommunityIcons name="circle" size={16} color={colors.gold} />}
-                <Text style={[s.statVal, { color: item.color, fontSize: item.isCoin ? 18 : 24 }]}>{item.val}</Text>
+                <MaterialCommunityIcons name={item.icon as any} size={20} color={item.color} />
+                <Text style={[s.statVal, { color: item.color, fontSize: 18, marginTop: 4 }]}>{item.val}</Text>
                 <Text style={s.statLabel}>{item.label}</Text>
               </View>
             ))}

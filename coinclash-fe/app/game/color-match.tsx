@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
@@ -44,10 +45,13 @@ export default function ColorMatchScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const isPractice = stake === 0;
   const finish = useGameFinish(stake);
+
+  const [gameReady, setGameReady] = useState(isPractice);
 
   const {
     matchState,
@@ -85,7 +89,15 @@ export default function ColorMatchScreen() {
 
   // When game begins
   useEffect(() => {
-    if (matchState.status === 'matched' || matchState.status === 'offline_ai') {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        startTime.current = Date.now();
+        roundStartTime.current = Date.now();
+      }, 2000);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
       startTime.current = Date.now();
       roundStartTime.current = Date.now();
     }
@@ -249,10 +261,13 @@ export default function ColorMatchScreen() {
     <View style={styles.container}>
       {/* Real-time Matchmaking Modal */}
       <MatchmakingModal
-        visible={matchState.status === 'searching'}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
         gameTitle="🎨 Color Match"
         stake={stake}
         searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => {
           cancelSearch();
           router.back();

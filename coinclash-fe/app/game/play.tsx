@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGame } from '@/context/GameContext';
 import { useWallet } from '@/context/WalletContext';
 import { useColors } from '@/hooks/useColors';
@@ -35,6 +36,7 @@ export default function PlayScreen() {
   const stake = parseInt(params.stake ?? '10', 10);
   const isPractice = stake === 0;
 
+  const { user } = useAuth();
   const { addCoins, addTransaction } = useWallet();
   const { addGameResult } = useGame();
 
@@ -71,7 +73,13 @@ export default function PlayScreen() {
 
   // When live match found or switched to bot match, start countdown
   useEffect(() => {
-    if (matchState.status === 'matched' || matchState.status === 'offline_ai') {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setPhase('countdown');
+        setCount(3);
+      }, 2000);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
       setPhase('countdown');
       setCount(3);
     }
@@ -339,10 +347,13 @@ export default function PlayScreen() {
     <View style={styles.container}>
       {/* Real-time Matchmaking Overlay */}
       <MatchmakingModal
-        visible={matchState.status === 'searching'}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && phase === 'searching')}
         gameTitle="⚡ Tap Race"
         stake={stake}
         searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => {
           cancelSearch();
           router.back();
