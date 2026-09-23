@@ -359,7 +359,7 @@ export default function HomeScreen() {
 
         {/* ── 6. LIVE TOURNAMENT ───────────────────────────────────────── */}
         <View style={s.section}>
-          <Pressable style={s.tourneyCard} onPress={() => router.push('/(tabs)/tournament')}>
+          <Pressable style={s.tourneyCard} onPress={() => router.push('/(tabs)/tournaments')}>
             <LinearGradient
               colors={['#2E1065', '#1E1B4B', '#0F172A']}
               style={s.tourneyGrad}
@@ -370,9 +370,8 @@ export default function HomeScreen() {
                   <Ionicons name="trophy" size={14} color={colors.gold} />
                   <Text style={s.tourneyBadgeText}>DAILY RUSH TOURNAMENT</Text>
                 </View>
-                <View style={s.timerChip}>
-                  <Ionicons name="time-outline" size={13} color="#F59E0B" />
-                  <Text style={s.timerChipText}>01:42:18 remaining</Text>
+                <View style={[s.timerChip, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                  <Text style={[s.timerChipText, { color: '#F59E0B' }]}>COMING SOON</Text>
                 </View>
               </View>
 
@@ -389,17 +388,17 @@ export default function HomeScreen() {
                   <Text style={s.tourneyStatVal}>50 🪙</Text>
                 </View>
                 <View style={s.tourneyStatItem}>
-                  <Text style={s.tourneyStatLabel}>Players</Text>
-                  <Text style={s.tourneyStatVal}>32 / 64</Text>
+                  <Text style={s.tourneyStatLabel}>Format</Text>
+                  <Text style={s.tourneyStatVal}>64 Players</Text>
                 </View>
               </View>
 
               <View style={s.tourneyFooter}>
                 <Pressable
                   style={s.tourneyBtn}
-                  onPress={() => router.push('/(tabs)/tournament')}
+                  onPress={() => router.push('/(tabs)/tournaments')}
                 >
-                  <Text style={s.tourneyBtnText}>JOIN NOW</Text>
+                  <Text style={s.tourneyBtnText}>VIEW TOURNAMENTS</Text>
                   <Ionicons name="arrow-forward" size={16} color="#FFF" />
                 </Pressable>
               </View>
@@ -454,20 +453,6 @@ export default function HomeScreen() {
             </LinearGradient>
           </View>
         )}
-
-        {/* ── 7. PLAYER PROGRESS (COMPACT) ─────────────────────────────── */}
-        <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionEmoji}>📊</Text>
-            <Text style={s.sectionTitle}>Your Performance</Text>
-          </View>
-          <View style={s.statsRow}>
-            <StatCard label="Wins" value={String(stats.wins)} color={colors.accent} />
-            <StatCard label="Losses" value={String(stats.losses)} color={colors.destructive} />
-            <StatCard label="Win Rate" value={`${stats.winRate}%`} color={colors.primary} />
-            <StatCard label="Best Streak" value={stats.bestStreak ? `${stats.bestStreak}🔥` : `${bonus?.streak || 0}🔥`} color={colors.gold} />
-          </View>
-        </View>
 
         {/* ── 8. RECENT GAMES ─────────────────────────────────────────── */}
         <View style={s.section}>
