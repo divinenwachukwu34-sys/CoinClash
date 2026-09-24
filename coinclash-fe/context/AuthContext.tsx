@@ -56,6 +56,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (storedToken) {
           const me = await api.me(storedToken);
+          if (me.reservedBankName === 'Mock Bank' || me.reservedAccountNumber === '0123456789') {
+            me.reservedBankName = undefined;
+            me.reservedAccountNumber = undefined;
+            me.reservedAccountName = undefined;
+          }
           setToken(storedToken);
           setUser(me);
         }
@@ -138,6 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token) return;
     try {
       const me = await api.me(token);
+      if (me.reservedBankName === 'Mock Bank' || me.reservedAccountNumber === '0123456789') {
+        me.reservedBankName = undefined;
+        me.reservedAccountNumber = undefined;
+        me.reservedAccountName = undefined;
+      }
       setUser(me);
     } catch {
       // Token expired

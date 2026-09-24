@@ -91,9 +91,10 @@ export default function WalletScreen() {
   }, [token]);
 
   useEffect(() => {
+    refreshUser();
     fetchMyBanks();
     fetchPending();
-  }, [fetchMyBanks, fetchPending]);
+  }, [refreshUser, fetchMyBanks, fetchPending]);
 
   // ── deposit flow ───────────────────────────────────────────────────────────
   const handleDeposit = async (pkg: typeof DEPOSIT_PACKAGES[0]) => {
