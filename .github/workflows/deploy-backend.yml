@@ -3,7 +3,7 @@ name: Deploy Backend to VPS
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'coinclash-backend/**'
       - '.github/workflows/deploy-backend.yml'
@@ -52,6 +52,8 @@ jobs:
             cd ${{ secrets.VPS_TARGET_DIR }}/coinclash-backend
             echo "=== Starting backend deployment ==="
             touch .env
+            sed -i '/^PAYSTACK_SECRET_KEY=/d' .env
+            echo "PAYSTACK_SECRET_KEY=${{ secrets.PAYSTACK_SECRET_KEY }}" >> .env
             echo "Building Docker image..."
             docker compose build
             echo "Starting containers..."
