@@ -1,4 +1,5 @@
-const rawUrl = process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'https://coinclash.saverr.tech';
+const defaultUrl = typeof __DEV__ !== 'undefined' && __DEV__ ? 'http://localhost:8000' : 'https://coinclash.saverr.tech';
+const rawUrl = process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || defaultUrl;
 const cleanUrl = rawUrl.replace(/\/+$/, '');
 
 // Centralized API Base URL (ensures /api route prefix)
