@@ -2,6 +2,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/context/AuthContext';
 import { useWallet } from '@/context/WalletContext';
 import { api, type TournamentDetails, type TournamentPlayer } from '@/lib/api';
+import { getWsUrl } from '@/constants/config';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -49,10 +50,8 @@ export default function TournamentDashboard() {
   useEffect(() => {
     if (!token || !t) return;
     
-    // Connect to WebSocket
-    // Extract base URL correctly
-    const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
-    const wsUrl = apiBaseUrl.replace('http', 'ws') + `/tournaments/ws/${tournamentId}`;
+    // Connect to WebSocket using centralized config
+    const wsUrl = getWsUrl(`/tournaments/ws/${tournamentId}`);
     
     const connectWs = () => {
       const ws = new WebSocket(wsUrl);

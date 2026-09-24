@@ -64,7 +64,7 @@ export default function SignupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ ref?: string }>();
-  const { signup } = useAuth();
+  const { signupInitiate, signupVerify, resendOtp } = useAuth();
 
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -74,6 +74,25 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // OTP Modal State
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [resendSeconds, setResendSeconds] = useState(60);
+  const [resending, setResending] = useState(false);
+
+  // Resend cooldown timer
+  React.useEffect(() => {
+    let timer: any;
+    if (showOtpModal && resendSeconds > 0) {
+      timer = setInterval(() => {
+        setResendSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [showOtpModal, resendSeconds]);
 
   const pwdPassed = useMemo(() => PWD_RULES.filter(r => r.test(password)).length, [password]);
   const passwordStrong = pwdPassed === PWD_RULES.length;
@@ -98,15 +117,22 @@ export default function SignupScreen() {
 
     // Phone validation
     if (!phone.trim()) { setErrorMsg('Please enter your phone number.'); return; }
-    const cleanPhone = phone.replace(/\s/g, '');
+    const cleanPhone = phone.replace(/\s/g, '').replace(/-/g, '');
     if (!/^(\+234|0)[7-9][01]\d{8}$/.test(cleanPhone)) {
       setErrorMsg('Enter a valid Nigerian phone number — e.g. 08012345678 or +2348012345678'); return;
     }
 
     setLoading(true);
     try {
-      await signup(email.trim().toLowerCase(), username.trim(), password, cleanPhone, referralCode.trim() || undefined);
-      router.replace('/(tabs)');
+      const res = await signupInitiate(
+        email.trim().toLowerCase(),
+        username.trim(),
+        password,
+        cleanPhone,
+        referralCode.trim() || undefined
+      );
+      setResendSeconds(res.resendCooldown || 60);
+      setShowOtpModal(true);
     } catch (err: any) {
       setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
     } finally {
@@ -114,10 +140,116 @@ export default function SignupScreen() {
     }
   };
 
+  const handleVerifyOtp = async () => {
+    if (otpCode.length < 6) {
+      setOtpError('Please enter the full 6-digit code.');
+      return;
+    }
+    setOtpError('');
+    setVerifyingOtp(true);
+    try {
+      await signupVerify(
+        email.trim().toLowerCase(),
+        otpCode.trim(),
+        referralCode.trim() || undefined
+      );
+      setShowOtpModal(false);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setOtpError(err.message ?? 'Invalid verification code. Please try again.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendSeconds > 0 || resending) return;
+    setResending(true);
+    setOtpError('');
+    try {
+      await resendOtp(email.trim().toLowerCase(), 'signup');
+      setResendSeconds(60);
+    } catch (err: any) {
+      setOtpError(err.message ?? 'Failed to resend code. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#060414', '#0D0829', '#110C35']} style={StyleSheet.absoluteFillObject} />
       <View style={styles.glowOrb} />
+
+      {/* ── OTP Verification Modal ────────────────────────────────────── */}
+      {showOtpModal && (
+        <View style={styles.otpModalOverlay}>
+          <View style={styles.otpModalCard}>
+            <View style={styles.otpIconBadge}>
+              <Ionicons name="mail-open-outline" size={32} color="#F59E0B" />
+            </View>
+            <Text style={styles.otpTitle}>Verify Your Email</Text>
+            <Text style={styles.otpSub}>
+              We sent a 6-digit code to <Text style={{ color: '#F59E0B', fontWeight: '700' }}>{email}</Text>. Code expires in 5 minutes.
+            </Text>
+
+            {otpError ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={15} color="#FF3B30" />
+                <Text style={styles.errorText}>{otpError}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.otpInputWrap}>
+              <TextInput
+                style={styles.otpInput}
+                placeholder="123456"
+                placeholderTextColor="#4B4870"
+                value={otpCode}
+                onChangeText={(t) => {
+                  setOtpCode(t.replace(/[^0-9]/g, '').slice(0, 6));
+                  setOtpError('');
+                }}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+              />
+            </View>
+
+            <Pressable
+              onPress={handleVerifyOtp}
+              disabled={verifyingOtp || otpCode.length !== 6}
+              style={[styles.otpVerifyBtn, otpCode.length !== 6 && { opacity: 0.5 }]}
+            >
+              <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.submitBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {verifyingOtp ? (
+                  <ActivityIndicator color="#1a1230" />
+                ) : (
+                  <Text style={styles.submitText}>Verify & Claim 100 Coins 🎁</Text>
+                )}
+              </LinearGradient>
+            </Pressable>
+
+            <View style={styles.resendRow}>
+              {resendSeconds > 0 ? (
+                <Text style={styles.resendTimerText}>
+                  Resend code in <Text style={{ color: '#F59E0B', fontWeight: '700' }}>{resendSeconds}s</Text>
+                </Text>
+              ) : (
+                <Pressable onPress={handleResendOtp} disabled={resending}>
+                  <Text style={styles.resendLink}>
+                    {resending ? 'Sending...' : 'Resend Verification Code'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+
+            <Pressable style={styles.changeEmailBtn} onPress={() => setShowOtpModal(false)}>
+              <Text style={styles.changeEmailText}>Edit Registration Details</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
@@ -216,7 +348,7 @@ export default function SignupScreen() {
                   autoCapitalize="none"
                 />
               </View>
-              <Text style={styles.hint}>Nigerian number · needed for your deposit account</Text>
+              <Text style={styles.hint}>Nigerian number · unique to each account</Text>
             </View>
 
             {/* Password */}
@@ -264,7 +396,7 @@ export default function SignupScreen() {
               <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.submitBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                 {loading
                   ? <ActivityIndicator color="#1a1230" />
-                  : <Text style={styles.submitText}>Create Account</Text>}
+                  : <Text style={styles.submitText}>Continue & Verify Email ✉️</Text>}
               </LinearGradient>
             </Pressable>
 
@@ -276,7 +408,7 @@ export default function SignupScreen() {
 
           <View style={styles.badge}>
             <Ionicons name="shield-checkmark-outline" size={13} color="#4B4870" />
-            <Text style={styles.badgeText}>Secured · Nigeria · Paystack Payments</Text>
+            <Text style={styles.badgeText}>Secured · 2-Step OTP Verification · Nigeria</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -354,4 +486,60 @@ const styles = StyleSheet.create({
 
   badge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 20, marginBottom: 8 },
   badgeText: { fontSize: 11, color: '#4B4870', fontFamily: 'Inter_400Regular' },
+
+  // OTP Modal Styles
+  otpModalOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(6, 4, 20, 0.94)',
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  otpModalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#110E2E',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#2A2550',
+    padding: 24,
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.7,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  otpIconBadge: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#1C1840',
+    borderWidth: 1, borderColor: '#F59E0B40',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  otpTitle: { fontSize: 22, fontWeight: '800', color: '#F5F0FF', fontFamily: 'Inter_700Bold' },
+  otpSub: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 19 },
+  otpInputWrap: { width: '100%', marginVertical: 12 },
+  otpInput: {
+    backgroundColor: '#0D0A26',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#F59E0B',
+    textAlign: 'center',
+    letterSpacing: 10,
+    fontFamily: 'Inter_700Bold',
+  },
+  otpVerifyBtn: { width: '100%', borderRadius: 14, overflow: 'hidden' },
+  resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  resendTimerText: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular' },
+  resendLink: { fontSize: 13, color: '#F59E0B', fontFamily: 'Inter_600SemiBold', textDecorationLine: 'underline' },
+  changeEmailBtn: { paddingVertical: 8, marginTop: 4 },
+  changeEmailText: { fontSize: 12, color: '#6B6890', fontFamily: 'Inter_500Medium' },
 });

@@ -11,10 +11,16 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "API_URL": "https://coinclash.saverr.tech"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "API_URL": "https://coinclash.saverr.tech"
+      }
     }
   },
   "submit": {

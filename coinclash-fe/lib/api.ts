@@ -1,7 +1,7 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+import { API_BASE_URL } from '@/constants/config';
 
-class ApiError extends Error {
-  constructor(message: string, public status?: number) {
+export class ApiError extends Error {
+  constructor(message: string, public status?: number, public code?: string) {
     super(message);
     this.name = 'ApiError';
   }
@@ -18,11 +18,48 @@ async function request<T = any>(
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers as Record<string, string> | undefined),
   };
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  let data: any;
-  try { data = await res.json(); } catch { throw new ApiError(`Server error (${res.status})`); }
-  if (!res.ok) throw new ApiError(data?.detail ?? data?.error ?? data?.message ?? `Request failed (${res.status})`, res.status);
-  return data as T;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new ApiError(`Server error (${res.status})`, res.status);
+    }
+
+    if (!res.ok) {
+      const errorMessage =
+        data?.detail ??
+        data?.error ??
+        data?.message ??
+        `Request failed (${res.status})`;
+      throw new ApiError(errorMessage, res.status, data?.code);
+    }
+
+    return data as T;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    if (err.name === 'AbortError') {
+      throw new ApiError('Request timed out. Please check your network connection.', 408);
+    }
+    if (err.message === 'Network request failed' || err.name === 'TypeError') {
+      throw new ApiError('Network request failed. Please check your internet connection.', 0);
+    }
+    throw new ApiError(err.message || 'An unexpected error occurred.', 500);
+  }
 }
 
 export interface NotificationItem {
@@ -36,12 +73,32 @@ export interface NotificationItem {
 
 export const api = {
   // Auth
-  signup: (email: string, username: string, password: string, phone?: string, referral_code?: string) =>
-    request<{ token: string; user: User; referralMessage?: string }>('/auth/signup', {
+  signup: (email: string, username: string, password: string, phone: string, referral_code?: string) =>
+    request<{ success: boolean; message: string; email: string; requiresOtp: boolean; resendCooldown: number }>('/auth/signup/initiate', {
       method: 'POST', body: JSON.stringify({ email, username, password, phone, referral_code }),
     }),
-  login: (email: string, password: string) =>
-    request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  signupVerify: (email: string, code: string, referral_code?: string) =>
+    request<{ success: boolean; token: string; user: User; referralMessage?: string; message: string }>('/auth/signup/verify', {
+      method: 'POST', body: JSON.stringify({ email, code, referral_code }),
+    }),
+  resendOtp: (email: string, purpose: string = 'signup') =>
+    request<{ success: boolean; message: string; resendCooldown: number }>('/auth/otp/resend', {
+      method: 'POST', body: JSON.stringify({ email, purpose }),
+    }),
+  login: (identifier: string, password: string) =>
+    request<{ success: boolean; token: string; user: User }>('/auth/login', { 
+      method: 'POST', body: JSON.stringify({ identifier, password }) 
+    }),
+  forgotPasswordRequest: (email: string) =>
+    request<{ success: boolean; message: string }>('/auth/forgot-password/request', {
+      method: 'POST', body: JSON.stringify({ email }),
+    }),
+  forgotPasswordReset: (email: string, code: string, new_password: string) =>
+    request<{ success: boolean; message: string }>('/auth/forgot-password/reset', {
+      method: 'POST', body: JSON.stringify({ email, code, new_password }),
+    }),
+  logoutAll: (token: string) =>
+    request<{ success: boolean; message: string }>('/auth/logout-all', { method: 'POST' }, token),
   me: (token: string) => request<User>('/auth/me', {}, token),
 
   // Notifications
@@ -142,10 +199,16 @@ export interface User {
   id: number;
   email: string;
   username: string;
+  phone?: string;
   coinBalance: number;
+  isVerified?: boolean;
+  status?: string;
+  isFlagged?: boolean;
+  referralCode?: string;
   reservedBankName?: string;
   reservedAccountNumber?: string;
   reservedAccountName?: string;
+  createdAt?: string;
 }
 
 export interface BankAccount {

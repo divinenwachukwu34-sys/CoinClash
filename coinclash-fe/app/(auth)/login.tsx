@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { api } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
@@ -24,32 +25,88 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Forgot password state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState<'email' | 'reset'>('email');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
+
   const handleLogin = async () => {
     setErrorMsg('');
-    if (!email.trim()) { setErrorMsg('Please enter your email address.'); return; }
-    if (!email.includes('@') || !email.includes('.')) {
-      setErrorMsg('That doesn\'t look like a valid email — e.g. you@gmail.com');
-      return;
-    }
+    if (!identifier.trim()) { setErrorMsg('Please enter your email or username.'); return; }
     if (!password) { setErrorMsg('Please enter your password.'); return; }
     if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters. Check that you typed it correctly.');
+      setErrorMsg('Password must be at least 6 characters.');
       return;
     }
     setLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
+      await login(identifier.trim(), password);
       router.replace('/(tabs)');
     } catch (err: any) {
-      setErrorMsg(err.message ?? 'Login failed. Please check your details and try again.');
+      setErrorMsg(err.message ?? 'Login failed. Please check your credentials and try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestReset = async () => {
+    if (!forgotEmail.trim() || !forgotEmail.includes('@')) {
+      setForgotError('Please enter a valid email address.');
+      return;
+    }
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const res = await api.forgotPasswordRequest(forgotEmail.trim().toLowerCase());
+      setForgotSuccess(res.message || 'Verification code sent to your email.');
+      setForgotStep('reset');
+    } catch (err: any) {
+      setForgotError(err.message ?? 'Failed to send reset code.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async () => {
+    if (resetOtp.trim().length !== 6) {
+      setForgotError('Please enter the 6-digit code sent to your email.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setForgotError('New password must be at least 8 characters long.');
+      return;
+    }
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const res = await api.forgotPasswordReset(
+        forgotEmail.trim().toLowerCase(),
+        resetOtp.trim(),
+        newPassword
+      );
+      setForgotSuccess(res.message);
+      setTimeout(() => {
+        setShowForgotModal(false);
+        setForgotStep('email');
+        setForgotError('');
+        setForgotSuccess('');
+        setIdentifier(forgotEmail.trim());
+      }, 1800);
+    } catch (err: any) {
+      setForgotError(err.message ?? 'Failed to reset password.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -62,6 +119,99 @@ export default function LoginScreen() {
       />
       {/* Gold glow orb behind logo */}
       <View style={styles.glowOrb} />
+
+      {/* ── Forgot Password Modal ───────────────────────────────────── */}
+      {showForgotModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reset Password</Text>
+              <Pressable onPress={() => { setShowForgotModal(false); setForgotStep('email'); setForgotError(''); setForgotSuccess(''); }}>
+                <Ionicons name="close" size={24} color="#8B85B0" />
+              </Pressable>
+            </View>
+
+            {forgotSuccess ? (
+              <View style={styles.successBox}>
+                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                <Text style={styles.successText}>{forgotSuccess}</Text>
+              </View>
+            ) : null}
+
+            {forgotError ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={15} color="#FF3B30" />
+                <Text style={styles.errorText}>{forgotError}</Text>
+              </View>
+            ) : null}
+
+            {forgotStep === 'email' ? (
+              <View style={{ gap: 14 }}>
+                <Text style={styles.modalSub}>
+                  Enter your registered email. We will send you a 6-digit code valid for 10 minutes.
+                </Text>
+                <View style={styles.fieldWrap}>
+                  <View style={styles.fieldIcon}>
+                    <Ionicons name="mail-outline" size={17} color="#A78BFA" />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="you@email.com"
+                    placeholderTextColor="#4B4870"
+                    value={forgotEmail}
+                    onChangeText={(t) => { setForgotEmail(t); setForgotError(''); }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                <Pressable onPress={handleRequestReset} disabled={forgotLoading} style={styles.loginBtnWrap}>
+                  <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.loginBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    {forgotLoading ? <ActivityIndicator color="#1a1230" /> : <Text style={styles.loginBtnText}>Send Reset Code ✉️</Text>}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ gap: 14 }}>
+                <Text style={styles.modalSub}>
+                  Enter the 6-digit code sent to <Text style={{ color: '#F59E0B', fontWeight: '700' }}>{forgotEmail}</Text> and your new password.
+                </Text>
+                <View style={styles.fieldWrap}>
+                  <View style={styles.fieldIcon}>
+                    <Ionicons name="key-outline" size={17} color="#A78BFA" />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="6-digit code (e.g. 123456)"
+                    placeholderTextColor="#4B4870"
+                    value={resetOtp}
+                    onChangeText={(t) => { setResetOtp(t.replace(/[^0-9]/g, '').slice(0, 6)); setForgotError(''); }}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </View>
+                <View style={styles.fieldWrap}>
+                  <View style={styles.fieldIcon}>
+                    <Ionicons name="lock-closed-outline" size={17} color="#A78BFA" />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="New password (min 8 chars, 1 upper, 1 digit)"
+                    placeholderTextColor="#4B4870"
+                    value={newPassword}
+                    onChangeText={(t) => { setNewPassword(t); setForgotError(''); }}
+                    secureTextEntry
+                  />
+                </View>
+                <Pressable onPress={handleResetSubmit} disabled={forgotLoading} style={styles.loginBtnWrap}>
+                  <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.loginBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                    {forgotLoading ? <ActivityIndicator color="#1a1230" /> : <Text style={styles.loginBtnText}>Save New Password 🔒</Text>}
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -93,7 +243,7 @@ export default function LoginScreen() {
           {/* ── Card ──────────────────────────────── */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Welcome back 👋</Text>
-            <Text style={styles.cardSub}>Log in to continue your winning streak</Text>
+            <Text style={styles.cardSub}>Log in with your Email or Username</Text>
 
             {/* Error */}
             {errorMsg ? (
@@ -103,18 +253,17 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            {/* Email */}
+            {/* Email or Username */}
             <View style={styles.fieldWrap}>
               <View style={styles.fieldIcon}>
-                <Ionicons name="mail-outline" size={17} color="#A78BFA" />
+                <Ionicons name="person-outline" size={17} color="#A78BFA" />
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="Email address"
+                placeholder="Email or Username"
                 placeholderTextColor="#4B4870"
-                value={email}
-                onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
-                keyboardType="email-address"
+                value={identifier}
+                onChangeText={(t) => { setIdentifier(t); setErrorMsg(''); }}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -136,6 +285,12 @@ export default function LoginScreen() {
               />
               <Pressable onPress={() => setShowPassword(v => !v)} style={{ paddingHorizontal: 14 }}>
                 <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#6B6890" />
+              </Pressable>
+            </View>
+
+            <View style={{ alignItems: 'flex-end', marginTop: -4 }}>
+              <Pressable onPress={() => setShowForgotModal(true)}>
+                <Text style={styles.forgotLink}>Forgot Password?</Text>
               </Pressable>
             </View>
 
@@ -221,6 +376,18 @@ const styles = StyleSheet.create({
   },
   errorText: { flex: 1, color: '#FF3B30', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
 
+  successBox: {
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 199, 89, 0.4)',
+    borderRadius: 10,
+    padding: 11,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  successText: { flex: 1, color: '#34C759', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
+
   fieldWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,6 +414,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
 
+  forgotLink: {
+    fontSize: 12,
+    color: '#A78BFA',
+    fontFamily: 'Inter_500Medium',
+  },
+
   loginBtnWrap: { borderRadius: 14, overflow: 'hidden', marginTop: 4 },
   loginBtn: { paddingVertical: 16, alignItems: 'center', borderRadius: 14 },
   loginBtnText: { fontSize: 16, fontWeight: '700', color: '#1a1230', fontFamily: 'Inter_700Bold', letterSpacing: 0.3 },
@@ -267,4 +440,36 @@ const styles = StyleSheet.create({
 
   badge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 24, marginBottom: 8 },
   badgeText: { fontSize: 11, color: '#4B4870', fontFamily: 'Inter_400Regular' },
+
+  // Modal Styles
+  modalOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(6, 4, 20, 0.92)',
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#110E2E',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#2A2550',
+    padding: 24,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.7,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#F5F0FF', fontFamily: 'Inter_700Bold' },
+  modalSub: { fontSize: 13, color: '#8B85B0', fontFamily: 'Inter_400Regular', lineHeight: 18 },
 });

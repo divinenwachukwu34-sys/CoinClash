@@ -79,8 +79,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { coins, syncFromServer, addTransaction } = useWallet();
-  const { stats, gameHistory } = useGame();
-  const { user, token } = useAuth();
+  const { user, token, avatar } = useAuth();
   const { unreadCount } = useNotifications();
   const [notifModalVisible, setNotifModalVisible] = useState(false);
 
@@ -151,9 +150,15 @@ export default function HomeScreen() {
         <View style={s.headerRow}>
           {/* Left Player Info */}
           <Pressable style={s.playerInfo} onPress={() => router.push('/(tabs)/profile')}>
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{initials}</Text>
-            </View>
+            {avatar?.photo ? (
+              <Image source={{ uri: avatar.photo }} style={s.avatarImg} />
+            ) : (
+              <View style={s.avatar}>
+                <Text style={avatar?.emoji ? s.avatarEmoji : s.avatarText}>
+                  {avatar?.emoji ?? initials}
+                </Text>
+              </View>
+            )}
             <View style={s.playerDetails}>
               <Text style={s.greeting}>Welcome back 👋</Text>
               <View style={s.nameRow}>
@@ -338,19 +343,19 @@ export default function HomeScreen() {
               </LinearGradient>
             </Pressable>
 
-            {/* Secondary Challenge Card */}
+            {/* Secondary Challenge Card -> Referral Program */}
             <Pressable
               style={[s.quickCard, s.quickCardSecondary]}
-              onPress={() => router.push('/game/select')}
+              onPress={() => router.push('/(tabs)/profile')}
             >
               <View style={s.quickCardInner}>
                 <View style={[s.quickIconCircle, { backgroundColor: colors.accent + '20' }]}>
-                  <Ionicons name="people" size={24} color={colors.accent} />
+                  <Ionicons name="gift" size={24} color={colors.accent} />
                 </View>
                 <Text style={s.quickCardTitleSecondary}>Challenge Friend</Text>
-                <Text style={s.quickCardSubSecondary}>Play directly against someone</Text>
+                <Text style={s.quickCardSubSecondary}>Invite friend & earn +25 bonus coins</Text>
                 <View style={[s.quickCtaPill, { backgroundColor: colors.accent + '20' }]}>
-                  <Text style={[s.quickCtaText, { color: colors.accent }]}>Invite →</Text>
+                  <Text style={[s.quickCtaText, { color: colors.accent }]}>Invite & Earn →</Text>
                 </View>
               </View>
             </Pressable>
@@ -359,7 +364,7 @@ export default function HomeScreen() {
 
         {/* ── 6. LIVE TOURNAMENT ───────────────────────────────────────── */}
         <View style={s.section}>
-          <Pressable style={s.tourneyCard} onPress={() => router.push('/(tabs)/tournament')}>
+          <Pressable style={s.tourneyCard} onPress={() => router.push('/(tabs)/tournaments')}>
             <LinearGradient
               colors={['#2E1065', '#1E1B4B', '#0F172A']}
               style={s.tourneyGrad}
@@ -370,9 +375,8 @@ export default function HomeScreen() {
                   <Ionicons name="trophy" size={14} color={colors.gold} />
                   <Text style={s.tourneyBadgeText}>DAILY RUSH TOURNAMENT</Text>
                 </View>
-                <View style={s.timerChip}>
-                  <Ionicons name="time-outline" size={13} color="#F59E0B" />
-                  <Text style={s.timerChipText}>01:42:18 remaining</Text>
+                <View style={[s.timerChip, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                  <Text style={[s.timerChipText, { color: '#F59E0B' }]}>COMING SOON</Text>
                 </View>
               </View>
 
@@ -389,17 +393,17 @@ export default function HomeScreen() {
                   <Text style={s.tourneyStatVal}>50 🪙</Text>
                 </View>
                 <View style={s.tourneyStatItem}>
-                  <Text style={s.tourneyStatLabel}>Players</Text>
-                  <Text style={s.tourneyStatVal}>32 / 64</Text>
+                  <Text style={s.tourneyStatLabel}>Format</Text>
+                  <Text style={s.tourneyStatVal}>64 Players</Text>
                 </View>
               </View>
 
               <View style={s.tourneyFooter}>
                 <Pressable
                   style={s.tourneyBtn}
-                  onPress={() => router.push('/(tabs)/tournament')}
+                  onPress={() => router.push('/(tabs)/tournaments')}
                 >
-                  <Text style={s.tourneyBtnText}>JOIN NOW</Text>
+                  <Text style={s.tourneyBtnText}>VIEW TOURNAMENTS</Text>
                   <Ionicons name="arrow-forward" size={16} color="#FFF" />
                 </Pressable>
               </View>
@@ -454,20 +458,6 @@ export default function HomeScreen() {
             </LinearGradient>
           </View>
         )}
-
-        {/* ── 7. PLAYER PROGRESS (COMPACT) ─────────────────────────────── */}
-        <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionEmoji}>📊</Text>
-            <Text style={s.sectionTitle}>Your Performance</Text>
-          </View>
-          <View style={s.statsRow}>
-            <StatCard label="Wins" value={String(stats.wins)} color={colors.accent} />
-            <StatCard label="Losses" value={String(stats.losses)} color={colors.destructive} />
-            <StatCard label="Win Rate" value={`${stats.winRate}%`} color={colors.primary} />
-            <StatCard label="Best Streak" value={stats.bestStreak ? `${stats.bestStreak}🔥` : `${bonus?.streak || 0}🔥`} color={colors.gold} />
-          </View>
-        </View>
 
         {/* ── 8. RECENT GAMES ─────────────────────────────────────────── */}
         <View style={s.section}>
@@ -582,8 +572,10 @@ function makeStyles(colors: any, topPad: number) {
     topHeader: { paddingTop: topPad + 10, paddingHorizontal: 20, paddingBottom: 16, gap: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     playerInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    avatar: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.primary + '30', borderWidth: 2, borderColor: colors.primary + '60', alignItems: 'center', justifyContent: 'center' },
+    avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary + '30', borderWidth: 2, borderColor: colors.primary + '60', alignItems: 'center', justifyContent: 'center' },
+    avatarImg: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: colors.primary + '60' },
     avatarText: { fontSize: 16, fontWeight: '700', color: colors.primary, fontFamily: 'Inter_700Bold' },
+    avatarEmoji: { fontSize: 22 },
     playerDetails: { flex: 1 },
     greeting: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular' },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 },

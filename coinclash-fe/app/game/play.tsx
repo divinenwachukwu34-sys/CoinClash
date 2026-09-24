@@ -1,7 +1,10 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGame } from '@/context/GameContext';
 import { useWallet } from '@/context/WalletContext';
 import { useColors } from '@/hooks/useColors';
-import { Ionicons } from '@expo/vector-icons';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,7 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type Phase = 'matching' | 'countdown' | 'early' | 'ready' | 'done';
+type Phase = 'searching' | 'countdown' | 'early' | 'ready' | 'done';
 
 export default function PlayScreen() {
   const colors = useColors();
@@ -31,13 +34,26 @@ export default function PlayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
+  const isPractice = stake === 0;
+
+  const { user } = useAuth();
   const { addCoins, addTransaction } = useWallet();
   const { addGameResult } = useGame();
 
-  const [phase, setPhase] = useState<Phase>('matching');
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('play', stake);
+
+  const [phase, setPhase] = useState<Phase>('searching');
   const [count, setCount] = useState(3);
 
-  const phaseRef = useRef<Phase>('matching');
+  const phaseRef = useRef<Phase>('searching');
   const hasFinished = useRef(false);
   const readyTimeRef = useRef(0);
   const opponentTimeRef = useRef(0);
@@ -50,6 +66,25 @@ export default function PlayScreen() {
     phaseRef.current = phase;
   }, [phase]);
 
+  // Start matchmaking or offline practice on mount
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  // When live match found or switched to bot match, start countdown
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setPhase('countdown');
+        setCount(3);
+      }, 2000);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setPhase('countdown');
+      setCount(3);
+    }
+  }, [matchState.status]);
+
   const finishGame = useCallback(
     (playerTime: number, opponentTime: number, won: boolean) => {
       if (hasFinished.current) return;
@@ -57,19 +92,24 @@ export default function PlayScreen() {
 
       const prize = won ? (stake > 0 ? stake * 2 - 5 : 0) : 0;
 
+      // In real live match, submit to websocket
+      if (matchState.status === 'matched' && matchState.roomId) {
+        submitFinalScore(won ? 100 : 50, playerTime, '1/1');
+      }
+
       if (stake > 0) {
         if (won) {
           addCoins(prize);
           addTransaction({
             type: 'win',
             amount: prize,
-            description: `Won ${stake}-coin match`,
+            description: `Won ${stake}-coin match against ${matchState.opponentUsername || 'Opponent'}`,
           });
         } else {
           addTransaction({
             type: 'loss',
             amount: stake,
-            description: `Lost ${stake}-coin match`,
+            description: `Lost ${stake}-coin match against ${matchState.opponentUsername || 'Opponent'}`,
           });
         }
       }
@@ -84,16 +124,17 @@ export default function PlayScreen() {
           opponentTime: String(opponentTime),
           prize: String(prize),
           stake: String(stake),
+          opponentName: matchState.opponentUsername || (isPractice ? 'Bot Player' : 'Opponent'),
         },
       });
     },
-    [stake, addCoins, addTransaction, addGameResult, router]
+    [stake, addCoins, addTransaction, addGameResult, router, matchState.status, matchState.roomId, matchState.opponentUsername, submitFinalScore, isPractice]
   );
 
   const handleTap = useCallback(() => {
     const currentPhase = phaseRef.current;
 
-    if (currentPhase === 'matching') return;
+    if (currentPhase === 'searching') return;
 
     if (currentPhase === 'countdown') {
       // Too early!
@@ -120,27 +161,23 @@ export default function PlayScreen() {
     tapScale.value = withSequence(withSpring(0.9, { damping: 8 }), withSpring(1));
     Haptics.impactAsync(won ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
 
-    setTimeout(() => finishGame(playerTime, opponentTime, won), 600);
-  }, [finishGame, tapScale]);
+    sendProgress(100, 1000, playerTime);
 
-  // Matching → countdown
-  useEffect(() => {
-    if (phase !== 'matching') return;
-    const t = setTimeout(() => {
-      setPhase('countdown');
-      setCount(3);
-    }, 1600);
-    return () => clearTimeout(t);
-  }, [phase]);
+    setTimeout(() => finishGame(playerTime, opponentTime, won), 600);
+  }, [finishGame, tapScale, sendProgress]);
 
   // Countdown ticking
   useEffect(() => {
     if (phase !== 'countdown') return;
 
     if (count <= 0) {
-      // Transition to ready after a short pause
+      // Transition to ready
       const t = setTimeout(() => {
-        const oppMs = Math.round(200 + Math.random() * 300); // 300–720ms
+        // Medium AI reaction time: 380ms - 580ms (fair and beatable)
+        const oppMs = isPractice
+          ? Math.round(420 + Math.random() * 180)
+          : Math.round(320 + Math.random() * 250);
+
         opponentTimeRef.current = oppMs;
         readyTimeRef.current = Date.now();
         setPhase('ready');
@@ -161,7 +198,7 @@ export default function PlayScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const t = setTimeout(() => setCount((c) => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, count, finishGame, bgBrightness]);
+  }, [phase, count, finishGame, bgBrightness, isPractice]);
 
   useEffect(() => {
     return () => {
@@ -200,133 +237,226 @@ export default function PlayScreen() {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    stakeLabel: {
-      flex: 1,
-      textAlign: 'center',
-      fontSize: 14,
+    stakeTag: {
+      marginLeft: 'auto',
+      backgroundColor: colors.card,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    stakeText: {
+      fontSize: 13,
       fontWeight: '600' as const,
-      color: colors.mutedForeground,
+      color: colors.foreground,
       fontFamily: 'Inter_600SemiBold',
     },
-    arena: {
-      flex: 1,
+    opponentBanner: {
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 30,
-      gap: 24,
+      gap: 6,
+      backgroundColor: colors.card,
+      paddingVertical: 6,
+      paddingHorizontal: 14,
+      borderRadius: 16,
+      marginHorizontal: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    statusText: {
-      fontSize: 18,
-      color: colors.mutedForeground,
-      fontFamily: 'Inter_500Medium',
-      textAlign: 'center',
+    opponentBannerText: {
+      fontSize: 12,
+      color: colors.foreground,
+      fontFamily: 'Inter_600SemiBold',
     },
-    countdownNum: {
-      fontSize: 96,
+    gameArea: {
+      flex: 1,
+      paddingHorizontal: 20,
+      paddingBottom: bottomPad + 20,
+      justifyContent: 'space-between',
+    },
+    instructionArea: {
+      alignItems: 'center',
+      paddingVertical: 20,
+    },
+    instructionTitle: {
+      fontSize: 24,
       fontWeight: '700' as const,
       fontFamily: 'Inter_700Bold',
       textAlign: 'center',
     },
-    tapArea: {
-      width: '100%',
-      height: 220,
-      borderRadius: 24,
+    instructionSub: {
+      fontSize: 14,
+      color: colors.mutedForeground,
+      fontFamily: 'Inter_400Regular',
+      marginTop: 6,
+      textAlign: 'center',
+    },
+    tapTarget: {
+      flex: 1,
+      maxHeight: 380,
+      borderRadius: 28,
       overflow: 'hidden',
-      marginBottom: bottomPad + 20,
     },
     tapGradient: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      padding: 24,
+    },
+    countdownCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: colors.primary + '20',
+      borderWidth: 2,
+      borderColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    countdownNum: {
+      fontSize: 48,
+      fontWeight: '700' as const,
+      color: colors.foreground,
+      fontFamily: 'Inter_700Bold',
+    },
+    tapPrompt: {
+      alignItems: 'center',
       gap: 8,
     },
-    tapLabel: {
-      fontSize: 36,
+    tapPromptText: {
+      fontSize: 32,
       fontWeight: '700' as const,
       color: '#FFFFFF',
       fontFamily: 'Inter_700Bold',
+      letterSpacing: 2,
     },
-    tapSub: {
-      fontSize: 15,
-      color: 'rgba(255,255,255,0.7)',
-      fontFamily: 'Inter_400Regular',
+    earlyText: {
+      fontSize: 22,
+      fontWeight: '700' as const,
+      color: '#FFFFFF',
+      fontFamily: 'Inter_700Bold',
     },
   });
 
   return (
     <View style={styles.container}>
+      {/* Real-time Matchmaking Overlay */}
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && phase === 'searching')}
+        gameTitle="⚡ Tap Race"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
+      {/* Top bar */}
       <View style={styles.topBar}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="close" size={18} color={colors.mutedForeground} />
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            cancelSearch();
+            router.back();
+          }}
+        >
+          <Ionicons name="arrow-back" size={20} color={colors.foreground} />
         </Pressable>
-        <Text style={styles.stakeLabel}>Stake: {stake} coins</Text>
-        <View style={{ width: 36 }} />
+        <View style={styles.stakeTag}>
+          <Text style={styles.stakeText}>
+            {isPractice ? '🎯 Practice (Stake 0)' : `${stake} Coins Stake`}
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.arena}>
-        {phase === 'matching' && (
-          <>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.statusText}>Finding opponent...</Text>
-          </>
-        )}
+      {/* Opponent Identity Banner */}
+      {(matchState.status === 'matched' || matchState.status === 'offline_ai') && (
+        <View style={styles.opponentBanner}>
+          <MaterialCommunityIcons
+            name={matchState.isPractice ? 'robot' : 'account'}
+            size={16}
+            color={matchState.isPractice ? colors.gold : colors.primary}
+          />
+          <Text style={styles.opponentBannerText}>
+            Dueling vs <Text style={{ color: colors.gold }}>{matchState.opponentUsername || 'Opponent'}</Text>
+          </Text>
+        </View>
+      )}
 
-        {phase === 'countdown' && count > 0 && (
-          <>
-            <Text style={[styles.statusText]}>Get ready...</Text>
-            <Text style={[styles.countdownNum, { color: colors.foreground }]}>{count}</Text>
-          </>
-        )}
+      {/* Main play area */}
+      <View style={styles.gameArea}>
+        <View style={styles.instructionArea}>
+          <Text
+            style={[
+              styles.instructionTitle,
+              {
+                color:
+                  phase === 'ready'
+                    ? colors.accent
+                    : phase === 'early'
+                    ? colors.destructive
+                    : colors.foreground,
+              },
+            ]}
+          >
+            {phase === 'countdown'
+              ? 'Get Ready...'
+              : phase === 'ready'
+              ? '⚡ TAP NOW!'
+              : phase === 'early'
+              ? '❌ Too Early!'
+              : phase === 'done'
+              ? 'Done!'
+              : 'Waiting for Match...'}
+          </Text>
+          <Text style={styles.instructionSub}>
+            {phase === 'countdown'
+              ? 'Tap immediately when the screen turns green!'
+              : phase === 'ready'
+              ? 'Fastest reaction wins!'
+              : phase === 'early'
+              ? 'Foul start — automatic round loss'
+              : ''}
+          </Text>
+        </View>
 
-        {phase === 'countdown' && count === 0 && (
-          <Text style={[styles.countdownNum, { color: colors.gold }]}>GO!</Text>
-        )}
-
-        {phase === 'early' && (
-          <>
-            <Ionicons name="warning" size={48} color={colors.destructive} />
-            <Text style={[styles.statusText, { color: colors.destructive }]}>
-              Too early! You lose this round.
-            </Text>
-          </>
-        )}
-
-        {(phase === 'ready' || phase === 'done') && (
-          <Text style={[styles.statusText, { color: colors.accent }]}>TAP THE BUTTON!</Text>
-        )}
+        {/* Tap area */}
+        <Animated.View style={[styles.tapTarget, tapAnimStyle]}>
+          <Pressable style={{ flex: 1 }} onPress={handleTap}>
+            <LinearGradient colors={tapAreaColors} style={styles.tapGradient}>
+              {phase === 'countdown' ? (
+                <View style={styles.countdownCircle}>
+                  <Text style={styles.countdownNum}>{count > 0 ? count : 'GO'}</Text>
+                </View>
+              ) : phase === 'ready' ? (
+                <View style={styles.tapPrompt}>
+                  <Ionicons name="flash" size={64} color="#FFFFFF" />
+                  <Text style={styles.tapPromptText}>TAP!</Text>
+                </View>
+              ) : phase === 'early' ? (
+                <View style={styles.tapPrompt}>
+                  <Ionicons name="close-circle" size={48} color="#FFFFFF" />
+                  <Text style={styles.earlyText}>Too Early!</Text>
+                </View>
+              ) : phase === 'done' ? (
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              ) : (
+                <ActivityIndicator size="large" color={colors.primary} />
+              )}
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
       </View>
-
-      {/* Tap button — always visible so player can't tap early accidentally on game start */}
-      <Animated.View style={[styles.tapArea, tapAnimStyle, { marginHorizontal: 20 }]}>
-        <Pressable onPress={handleTap} style={{ flex: 1 }}>
-          <LinearGradient colors={tapAreaColors} style={styles.tapGradient}>
-            {phase === 'ready' && (
-              <>
-                <Text style={styles.tapLabel}>TAP!</Text>
-                <Text style={styles.tapSub}>Tap as fast as you can</Text>
-              </>
-            )}
-            {phase === 'matching' && (
-              <Text style={[styles.tapSub, { color: 'rgba(255,255,255,0.4)' }]}>
-                Wait for the signal...
-              </Text>
-            )}
-            {phase === 'countdown' && (
-              <Text style={[styles.tapSub, { color: 'rgba(255,255,255,0.4)' }]}>
-                Don't tap yet!
-              </Text>
-            )}
-            {phase === 'early' && (
-              <Text style={[styles.tapLabel, { color: colors.destructive }]}>TOO EARLY!</Text>
-            )}
-            {phase === 'done' && (
-              <Text style={styles.tapSub}>Calculating result...</Text>
-            )}
-          </LinearGradient>
-        </Pressable>
-      </Animated.View>
-
-      <View style={{ height: bottomPad + 20 }} />
     </View>
   );
 }

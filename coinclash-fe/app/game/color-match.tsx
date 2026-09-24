@@ -1,6 +1,9 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
-import { Ionicons } from '@expo/vector-icons';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -42,9 +45,23 @@ export default function ColorMatchScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
+  const isPractice = stake === 0;
   const finish = useGameFinish(stake);
+
+  const [gameReady, setGameReady] = useState(isPractice);
+
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('color-match', stake);
 
   const rounds = useRef(Array.from({ length: ROUNDS }, buildRound));
   const [roundIdx, setRoundIdx] = useState(0);
@@ -58,12 +75,33 @@ export default function ColorMatchScreen() {
   const [roundTimeLeft, setRoundTimeLeft] = useState(PER_ROUND_TIME_MS);
   const [elapsedSec, setElapsedSec] = useState('0.0');
 
-  // AI parameters
-  const aiCorrect = useRef(Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
-  const aiTime = useRef(ROUNDS * (1100 + Math.random() * 500)); // ~1.1-1.6s per round average for AI
+  // Calibrated Medium AI Bot stats
+  const aiCorrect = useRef(isPractice ? Math.floor(ROUNDS * (0.625 + Math.random() * 0.25)) : Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
+  const aiTime = useRef(ROUNDS * (1200 + Math.random() * 400)); // ~1.2s-1.6s per round
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = rounds.current[roundIdx];
+
+  // Start matchmaking or offline practice on mount
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  // When game begins
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        startTime.current = Date.now();
+        roundStartTime.current = Date.now();
+      }, 2000);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      startTime.current = Date.now();
+      roundStartTime.current = Date.now();
+    }
+  }, [matchState.status]);
 
   // Advance to next round or finish
   const nextRound = useCallback(
@@ -78,12 +116,23 @@ export default function ColorMatchScreen() {
       setPlayerCorrect(newCorrect);
       setPlayerScore(newScore);
 
+      // Broadcast progress if in real live match
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(roundIdx + 1, newScore, Date.now() - startTime.current);
+      }
+
       setFeedback(isTimeout ? 'timeout' : isCorrect ? 'correct' : 'wrong');
 
       setTimeout(() => {
         setFeedback(null);
         if (roundIdx + 1 >= ROUNDS) {
           const totalTime = Date.now() - startTime.current;
+
+          // If in live match, submit to server
+          if (matchState.status === 'matched' && matchState.roomId) {
+            submitFinalScore(newScore, totalTime, `${newCorrect}/${ROUNDS}`);
+          }
+
           const won =
             newCorrect > aiCorrect.current ||
             (newCorrect === aiCorrect.current && totalTime < aiTime.current);
@@ -103,23 +152,25 @@ export default function ColorMatchScreen() {
         }
       }, 350);
     },
-    [roundIdx, playerCorrect, playerScore, finish]
+    [roundIdx, playerCorrect, playerScore, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]
   );
 
   // Handle user tap
   const handleAnswer = useCallback(
     (name: string) => {
-      if (feedback !== null) return;
+      if (feedback !== null || matchState.status === 'searching') return;
       const spent = Date.now() - roundStartTime.current;
       const isCorrect = name === current.correct.name;
       Haptics.impactAsync(isCorrect ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
       nextRound(isCorrect, spent, false);
     },
-    [feedback, current, nextRound]
+    [feedback, current, nextRound, matchState.status]
   );
 
   // Per-round countdown loop & total stopwatch
   useEffect(() => {
+    if (matchState.status === 'searching') return;
+
     const timer = setInterval(() => {
       const totalElapsed = (Date.now() - startTime.current) / 1000;
       setElapsedSec(totalElapsed.toFixed(1));
@@ -137,7 +188,7 @@ export default function ColorMatchScreen() {
     }, 50);
 
     return () => clearInterval(timer);
-  }, [roundIdx, feedback, nextRound]);
+  }, [roundIdx, feedback, nextRound, matchState.status]);
 
   const timePct = roundTimeLeft / PER_ROUND_TIME_MS;
   const timerBarColor = timePct > 0.5 ? '#10B981' : timePct > 0.25 ? '#EAB308' : '#EF4444';
@@ -150,6 +201,26 @@ export default function ColorMatchScreen() {
     title: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
     stopwatch: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
     stopwatchText: { fontSize: 13, color: colors.primary, fontFamily: 'Inter_700Bold' },
+
+    opponentBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.card,
+      paddingVertical: 5,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignSelf: 'center',
+    },
+    opponentBannerText: {
+      fontSize: 12,
+      color: colors.foreground,
+      fontFamily: 'Inter_600SemiBold',
+    },
 
     timerTrack: { height: 6, width: '100%', backgroundColor: colors.muted, borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
     timerFill: { height: '100%', borderRadius: 3 },
@@ -178,15 +249,32 @@ export default function ColorMatchScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 99999, 0, 'ms');
           },
         },
       ]
     );
-  }, [finish]);
+  }, [finish, cancelSearch]);
 
   return (
     <View style={styles.container}>
+      {/* Real-time Matchmaking Modal */}
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🎨 Color Match"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#2D0A2A', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>
@@ -198,6 +286,20 @@ export default function ColorMatchScreen() {
             <Text style={styles.stopwatchText}>{elapsedSec}s</Text>
           </View>
         </View>
+
+        {/* Opponent Identity Banner */}
+        {(matchState.status === 'matched' || matchState.status === 'offline_ai') && (
+          <View style={styles.opponentBanner}>
+            <MaterialCommunityIcons
+              name={matchState.isPractice ? 'robot' : 'account'}
+              size={14}
+              color={matchState.isPractice ? colors.gold : colors.primary}
+            />
+            <Text style={styles.opponentBannerText}>
+              Dueling vs <Text style={{ color: colors.gold }}>{matchState.opponentUsername || 'Opponent'}</Text>
+            </Text>
+          </View>
+        )}
 
         {/* Rapid countdown bar for round */}
         <View style={styles.timerTrack}>

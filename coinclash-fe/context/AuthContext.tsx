@@ -9,14 +9,25 @@ import React, {
 import { api, type User } from '@/lib/api';
 
 const TOKEN_KEY = 'coincash_token_v1';
+const AVATAR_KEY = 'coinclash_avatar';
+
+interface AvatarData {
+  emoji: string | null;
+  photo: string | null;
+}
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   authLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, username: string, password: string, phone?: string, referralCode?: string) => Promise<void>;
+  avatar: AvatarData;
+  setAvatar: (emoji: string | null, photo: string | null) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
+  signupInitiate: (email: string, username: string, password: string, phone: string, referralCode?: string) => Promise<{ requiresOtp: boolean; message: string; resendCooldown: number }>;
+  signupVerify: (email: string, code: string, referralCode?: string) => Promise<{ referralMessage?: string; message: string }>;
+  resendOtp: (email: string, purpose?: string) => Promise<void>;
   logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -26,15 +37,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [avatar, setAvatarState] = useState<AvatarData>({ emoji: null, photo: null });
 
-  // Load persisted token on mount
+  // Load persisted token and avatar on mount
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(TOKEN_KEY);
-        if (stored) {
-          const me = await api.me(stored);
-          setToken(stored);
+        const [storedToken, storedAvatar] = await Promise.all([
+          AsyncStorage.getItem(TOKEN_KEY),
+          AsyncStorage.getItem(AVATAR_KEY),
+        ]);
+
+        if (storedAvatar) {
+          try {
+            setAvatarState(JSON.parse(storedAvatar));
+          } catch {}
+        }
+
+        if (storedToken) {
+          const me = await api.me(storedToken);
+          setToken(storedToken);
           setUser(me);
         }
       } catch {
@@ -46,6 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  const setAvatar = useCallback(async (emoji: string | null, photo: string | null) => {
+    const data = { emoji, photo };
+    setAvatarState(data);
+    await AsyncStorage.setItem(AVATAR_KEY, JSON.stringify(data));
+  }, []);
+
   const persist = useCallback(async (tok: string, usr: User) => {
     await AsyncStorage.setItem(TOKEN_KEY, tok);
     setToken(tok);
@@ -53,26 +81,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const { token: tok, user: usr } = await api.login(email, password);
-      await persist(tok, usr);
+    async (identifier: string, password: string) => {
+      const res = await api.login(identifier, password);
+      await persist(res.token, res.user);
     },
     [persist]
   );
 
-  const signup = useCallback(
-    async (email: string, username: string, password: string, phone?: string, referralCode?: string) => {
-      const { token: tok, user: usr } = await api.signup(email, username, password, phone, referralCode);
-      await persist(tok, usr);
+  const signupInitiate = useCallback(
+    async (email: string, username: string, password: string, phone: string, referralCode?: string) => {
+      const res = await api.signup(email, username, password, phone, referralCode);
+      return {
+        requiresOtp: res.requiresOtp,
+        message: res.message,
+        resendCooldown: res.resendCooldown || 60,
+      };
+    },
+    []
+  );
+
+  const signupVerify = useCallback(
+    async (email: string, code: string, referralCode?: string) => {
+      const res = await api.signupVerify(email, code, referralCode);
+      await persist(res.token, res.user);
+      return {
+        referralMessage: res.referralMessage,
+        message: res.message,
+      };
     },
     [persist]
   );
+
+  const resendOtp = useCallback(async (email: string, purpose: string = 'signup') => {
+    await api.resendOtp(email, purpose);
+  }, []);
 
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
   }, []);
+
+  const logoutAll = useCallback(async () => {
+    if (token) {
+      try {
+        await api.logoutAll(token);
+      } catch {}
+    }
+    await logout();
+  }, [token, logout]);
 
   const refreshUser = useCallback(async () => {
     if (!token) return;
@@ -86,7 +143,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, token, authLoading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      authLoading,
+      avatar,
+      setAvatar,
+      login,
+      signupInitiate,
+      signupVerify,
+      resendOtp,
+      logout,
+      logoutAll,
+      refreshUser
+    }}>
       {children}
     </AuthContext.Provider>
   );
