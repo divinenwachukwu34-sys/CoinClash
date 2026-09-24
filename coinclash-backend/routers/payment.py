@@ -22,11 +22,12 @@ async def init_deposit(data: DepositRequest, current_user: dict = Depends(get_cu
         raise HTTPException(status_code=404, detail="User not found")
     
     amount_kobo = int(data.amount_ngn * 100)
+    secret = PaystackClient.get_secret()
     
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "https://api.paystack.co/transaction/initialize",
-            headers={"Authorization": f"Bearer {PAYSTACK_SECRET}"},
+            headers={"Authorization": f"Bearer {secret}"},
             json={"email": user["email"], "amount": amount_kobo}
         )
         resp_data = response.json()

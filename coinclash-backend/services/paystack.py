@@ -2,22 +2,26 @@ import os
 import httpx
 import logging
 
-PAYSTACK_SECRET = os.getenv('PAYSTACK_SECRET_KEY')
 BASE_URL = "https://api.paystack.co"
 
 logger = logging.getLogger(__name__)
 
 class PaystackClient:
     @staticmethod
+    def get_secret() -> str:
+        return os.getenv('PAYSTACK_SECRET_KEY', '')
+
+    @staticmethod
     def get_headers():
         return {
-            "Authorization": f"Bearer {PAYSTACK_SECRET}",
+            "Authorization": f"Bearer {PaystackClient.get_secret()}",
             "Content-Type": "application/json"
         }
 
     @staticmethod
     async def create_customer(email: str, first_name: str = "", last_name: str = "", phone: str = "") -> dict:
-        if not PAYSTACK_SECRET:
+        secret = PaystackClient.get_secret()
+        if not secret:
             # Return mock data for development if no key
             return {"customer_code": f"CUS_{email.split('@')[0]}", "id": 12345}
             
@@ -40,7 +44,7 @@ class PaystackClient:
 
     @staticmethod
     async def get_customer(email_or_code: str) -> dict | None:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return {"customer_code": f"CUS_{email_or_code.split('@')[0]}", "id": 12345}
             
         async with httpx.AsyncClient() as client:
@@ -55,7 +59,7 @@ class PaystackClient:
 
     @staticmethod
     async def update_customer(customer_code: str, first_name: str = "", last_name: str = "", phone: str = "") -> dict | None:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return {"customer_code": customer_code}
             
         async with httpx.AsyncClient() as client:
@@ -76,7 +80,7 @@ class PaystackClient:
 
     @staticmethod
     async def get_or_create_customer(email: str, first_name: str = "", last_name: str = "", phone: str = "") -> dict:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return {"customer_code": f"CUS_{email.split('@')[0]}", "id": 12345}
 
         # Try to fetch existing customer first
@@ -98,7 +102,7 @@ class PaystackClient:
 
     @staticmethod
     async def create_dedicated_account(customer_code: str, preferred_bank: str = "wema-bank") -> dict:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return {
                 "bank": {"name": "Mock Bank"},
                 "account_number": "0123456789",
@@ -122,7 +126,7 @@ class PaystackClient:
 
     @staticmethod
     async def get_banks() -> list:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return [
                 {"name": "Access Bank", "code": "044"},
                 {"name": "Guaranty Trust Bank", "code": "058"},
@@ -143,7 +147,7 @@ class PaystackClient:
 
     @staticmethod
     async def resolve_account(account_number: str, bank_code: str) -> dict:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             if len(account_number) == 10:
                 return {"account_name": "JOHN DOE", "account_number": account_number}
             raise Exception("Invalid account number length")
@@ -160,7 +164,7 @@ class PaystackClient:
 
     @staticmethod
     async def create_transfer_recipient(name: str, account_number: str, bank_code: str) -> dict:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return {"recipient_code": f"RCP_mock_{account_number}"}
             
         async with httpx.AsyncClient() as client:
@@ -182,7 +186,7 @@ class PaystackClient:
 
     @staticmethod
     async def initiate_transfer(amount_ngn: float, recipient_code: str, reference: str, reason: str = "CoinClash Withdrawal") -> dict:
-        if not PAYSTACK_SECRET:
+        if not PaystackClient.get_secret():
             return {"status": "success", "message": "Mock transfer queued"}
             
         amount_kobo = int(amount_ngn * 100)
