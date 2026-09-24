@@ -9,6 +9,7 @@ export interface GameResult {
   opponentTime: number;
   prize: number;
   timestamp: number;
+  gameType?: string;
 }
 
 interface GameStats {

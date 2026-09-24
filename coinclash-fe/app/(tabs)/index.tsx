@@ -80,7 +80,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { coins, syncFromServer, addTransaction } = useWallet();
   const { user, token, avatar } = useAuth();
-  const { stats } = useGame();
+  const { stats, gameHistory } = useGame();
   const { unreadCount } = useNotifications();
   const [notifModalVisible, setNotifModalVisible] = useState(false);
 
