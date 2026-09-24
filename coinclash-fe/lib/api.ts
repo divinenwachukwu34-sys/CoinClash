@@ -73,12 +73,32 @@ export interface NotificationItem {
 
 export const api = {
   // Auth
-  signup: (email: string, username: string, password: string, phone?: string, referral_code?: string) =>
-    request<{ token: string; user: User; referralMessage?: string }>('/auth/signup', {
+  signup: (email: string, username: string, password: string, phone: string, referral_code?: string) =>
+    request<{ success: boolean; message: string; email: string; requiresOtp: boolean; resendCooldown: number }>('/auth/signup/initiate', {
       method: 'POST', body: JSON.stringify({ email, username, password, phone, referral_code }),
     }),
-  login: (email: string, password: string) =>
-    request<{ token: string; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  signupVerify: (email: string, code: string, referral_code?: string) =>
+    request<{ success: boolean; token: string; user: User; referralMessage?: string; message: string }>('/auth/signup/verify', {
+      method: 'POST', body: JSON.stringify({ email, code, referral_code }),
+    }),
+  resendOtp: (email: string, purpose: string = 'signup') =>
+    request<{ success: boolean; message: string; resendCooldown: number }>('/auth/otp/resend', {
+      method: 'POST', body: JSON.stringify({ email, purpose }),
+    }),
+  login: (identifier: string, password: string) =>
+    request<{ success: boolean; token: string; user: User }>('/auth/login', { 
+      method: 'POST', body: JSON.stringify({ identifier, password }) 
+    }),
+  forgotPasswordRequest: (email: string) =>
+    request<{ success: boolean; message: string }>('/auth/forgot-password/request', {
+      method: 'POST', body: JSON.stringify({ email }),
+    }),
+  forgotPasswordReset: (email: string, code: string, new_password: string) =>
+    request<{ success: boolean; message: string }>('/auth/forgot-password/reset', {
+      method: 'POST', body: JSON.stringify({ email, code, new_password }),
+    }),
+  logoutAll: (token: string) =>
+    request<{ success: boolean; message: string }>('/auth/logout-all', { method: 'POST' }, token),
   me: (token: string) => request<User>('/auth/me', {}, token),
 
   // Notifications
@@ -179,10 +199,16 @@ export interface User {
   id: number;
   email: string;
   username: string;
+  phone?: string;
   coinBalance: number;
+  isVerified?: boolean;
+  status?: string;
+  isFlagged?: boolean;
+  referralCode?: string;
   reservedBankName?: string;
   reservedAccountNumber?: string;
   reservedAccountName?: string;
+  createdAt?: string;
 }
 
 export interface BankAccount {

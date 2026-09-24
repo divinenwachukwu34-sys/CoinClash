@@ -6,12 +6,44 @@ import { api } from '@/lib/api';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, Platform, Pressable, ScrollView, StyleSheet,
-  Share, Text, TextInput, View, ActivityIndicator,
+  Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet,
+  Share, Text, TextInput, TouchableOpacity, View, ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// ── Preset avatars ────────────────────────────────────────────────────────────
+const MALE_AVATARS = [
+  { id: 'm1', emoji: '🧑', label: 'Dude' },
+  { id: 'm2', emoji: '👨', label: 'Guy' },
+  { id: 'm3', emoji: '🧔', label: 'Beard' },
+  { id: 'm4', emoji: '👨‍💻', label: 'Coder' },
+  { id: 'm5', emoji: '🦸‍♂️', label: 'Hero' },
+  { id: 'm6', emoji: '🥷', label: 'Ninja' },
+  { id: 'm7', emoji: '🤴', label: 'Prince' },
+  { id: 'm8', emoji: '👨‍🚀', label: 'Astro' },
+  { id: 'm9', emoji: '🧙‍♂️', label: 'Wizard' },
+  { id: 'm10', emoji: '👨‍⚖️', label: 'Judge' },
+];
+
+const FEMALE_AVATARS = [
+  { id: 'f1', emoji: '👩', label: 'Lady' },
+  { id: 'f2', emoji: '🧕', label: 'Queen' },
+  { id: 'f3', emoji: '👩‍💻', label: 'Dev' },
+  { id: 'f4', emoji: '🦸‍♀️', label: 'Hero' },
+  { id: 'f5', emoji: '🧝‍♀️', label: 'Elf' },
+  { id: 'f6', emoji: '👸', label: 'Princess' },
+  { id: 'f7', emoji: '👩‍🚀', label: 'Astro' },
+  { id: 'f8', emoji: '🧜‍♀️', label: 'Mermaid' },
+  { id: 'f9', emoji: '🧙‍♀️', label: 'Witch' },
+  { id: 'f10', emoji: '🥷', label: 'Ninja' },
+];
+
+const AVATAR_KEY = 'coinclash_avatar';
 
 const ACHIEVEMENTS = [
   { id: 'first_win',   icon: '🏆', title: 'First Victory',   desc: 'Win your first match',    check: (s: any) => s.wins >= 1   },
@@ -36,7 +68,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout, token, refreshUser } = useAuth();
+  const { user, logout, logoutAll, token, refreshUser, avatar, setAvatar } = useAuth();
   const { coins } = useWallet();
   const { stats } = useGame();
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
@@ -44,6 +76,32 @@ export default function ProfileScreen() {
   const [editingUsername, setEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
+
+  // Avatar state
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [avatarTab, setAvatarTab] = useState<'male' | 'female'>('male');
+
+  const saveAvatar = async (emoji: string | null, photo: string | null) => {
+    await setAvatar(emoji, photo);
+    setShowAvatarModal(false);
+  };
+
+  const handlePickPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      await saveAvatar(null, result.assets[0].uri);
+    }
+  };
 
   // Referral state
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -156,11 +214,71 @@ export default function ProfileScreen() {
 
   return (
     <View style={s.container}>
+
+      {/* ── Avatar Picker Modal ─────────────────────────────────────── */}
+      <Modal visible={showAvatarModal} transparent animationType="slide" onRequestClose={() => setShowAvatarModal(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Choose Your Avatar</Text>
+              <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
+                <Ionicons name="close" size={24} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Tab row */}
+            <View style={s.tabRow}>
+              {(['male', 'female'] as const).map((t) => (
+                <TouchableOpacity key={t} style={[s.tabBtn, avatarTab === t && s.tabBtnActive]} onPress={() => setAvatarTab(t)}>
+                  <Text style={[s.tabBtnText, avatarTab === t && s.tabBtnTextActive]}>
+                    {t === 'male' ? '♂ Male' : '♀ Female'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Avatar grid */}
+            <FlatList
+              data={avatarTab === 'male' ? MALE_AVATARS : FEMALE_AVATARS}
+              numColumns={5}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={s.avatarGrid}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={s.avatarGridItem} onPress={() => saveAvatar(item.emoji, null)}>
+                  <View style={[s.avatarGridCell, avatar?.emoji === item.emoji && s.avatarGridCellActive]}>
+                    <Text style={s.avatarGridEmoji}>{item.emoji}</Text>
+                  </View>
+                  <Text style={s.avatarGridLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              )}
+            />
+
+            {/* Upload photo */}
+            <TouchableOpacity style={s.uploadBtn} onPress={handlePickPhoto}>
+              <Ionicons name="camera-outline" size={20} color="#fff" />
+              <Text style={s.uploadBtnText}>Upload My Photo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <LinearGradient colors={['#0D0A2A', colors.background]} style={s.header}>
         <View style={s.avatarRow}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>{initials}</Text>
-          </View>
+          {/* Avatar display with edit button */}
+          <TouchableOpacity style={s.avatarWrapper} onPress={() => setShowAvatarModal(true)}>
+            {avatar?.photo ? (
+              <Image source={{ uri: avatar.photo }} style={s.avatarImg} />
+            ) : (
+              <View style={s.avatar}>
+                <Text style={avatar?.emoji ? s.avatarEmoji : s.avatarText}>
+                  {avatar?.emoji ?? initials}
+                </Text>
+              </View>
+            )}
+            <View style={s.avatarEditBadge}>
+              <Ionicons name="pencil" size={11} color="#fff" />
+            </View>
+          </TouchableOpacity>
           <Text style={s.username}>{user?.username ?? 'Player'}</Text>
           <Text style={s.email}>{user?.email}</Text>
           <View style={s.badgeRow}>
@@ -391,6 +509,23 @@ export default function ProfileScreen() {
             </Pressable>
           )}
 
+          <Pressable style={s.settingsItem} onPress={async () => {
+            if (Platform.OS === 'web') {
+              if (window.confirm('Log out from all devices? You will need to log in again on all phones/browsers.')) {
+                await logoutAll();
+              }
+            } else {
+              Alert.alert('Log out all devices', 'This will terminate your session on all phones and browsers.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Log Out Everywhere', style: 'destructive', onPress: async () => { await logoutAll(); } },
+              ]);
+            }
+          }}>
+            <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
+            <Text style={s.settingsText}>Log Out All Devices</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+          </Pressable>
+
           <Pressable style={[s.settingsItem, s.logoutItem]} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={18} color={colors.destructive} />
             <Text style={[s.settingsText, s.logoutText]}>Log out</Text>
@@ -416,8 +551,31 @@ function makeStyles(colors: any, topPad: number) {
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingTop: topPad + 16, paddingHorizontal: 20, paddingBottom: 32 },
     avatarRow: { alignItems: 'center', gap: 8 },
-    avatar: { width: 88, height: 88, borderRadius: 24, backgroundColor: colors.primary + '30', borderWidth: 3, borderColor: colors.primary + '60', alignItems: 'center', justifyContent: 'center' },
+    avatarWrapper: { position: 'relative' },
+    avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.primary + '30', borderWidth: 3, borderColor: colors.primary + '60', alignItems: 'center', justifyContent: 'center' },
+    avatarImg: { width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: colors.primary + '60' },
     avatarText: { fontSize: 32, fontWeight: '700', color: colors.primary, fontFamily: 'Inter_700Bold' },
+    avatarEmoji: { fontSize: 42 },
+    avatarEditBadge: { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.background },
+
+    // Avatar Picker Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 40 },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: colors.foreground, fontFamily: 'Inter_700Bold' },
+    tabRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+    tabBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+    tabBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    tabBtnText: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' },
+    tabBtnTextActive: { color: '#fff' },
+    avatarGrid: { paddingBottom: 12 },
+    avatarGridItem: { flex: 1, alignItems: 'center', margin: 6 },
+    avatarGridCell: { width: 54, height: 54, borderRadius: 16, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.border },
+    avatarGridCellActive: { borderColor: colors.primary, backgroundColor: colors.primary + '20' },
+    avatarGridEmoji: { fontSize: 30 },
+    avatarGridLabel: { fontSize: 9, color: colors.mutedForeground, marginTop: 3, fontFamily: 'Inter_400Regular' },
+    uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 14, marginTop: 8 },
+    uploadBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
     username: { fontSize: 24, fontWeight: '700', color: colors.foreground, fontFamily: 'Inter_700Bold' },
     email: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
     badgeRow: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' },

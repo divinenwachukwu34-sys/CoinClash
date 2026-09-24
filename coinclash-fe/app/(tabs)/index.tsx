@@ -79,8 +79,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { coins, syncFromServer, addTransaction } = useWallet();
-  const { stats, gameHistory } = useGame();
-  const { user, token } = useAuth();
+  const { user, token, avatar } = useAuth();
   const { unreadCount } = useNotifications();
   const [notifModalVisible, setNotifModalVisible] = useState(false);
 
@@ -151,9 +150,15 @@ export default function HomeScreen() {
         <View style={s.headerRow}>
           {/* Left Player Info */}
           <Pressable style={s.playerInfo} onPress={() => router.push('/(tabs)/profile')}>
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{initials}</Text>
-            </View>
+            {avatar?.photo ? (
+              <Image source={{ uri: avatar.photo }} style={s.avatarImg} />
+            ) : (
+              <View style={s.avatar}>
+                <Text style={avatar?.emoji ? s.avatarEmoji : s.avatarText}>
+                  {avatar?.emoji ?? initials}
+                </Text>
+              </View>
+            )}
             <View style={s.playerDetails}>
               <Text style={s.greeting}>Welcome back 👋</Text>
               <View style={s.nameRow}>
@@ -567,8 +572,10 @@ function makeStyles(colors: any, topPad: number) {
     topHeader: { paddingTop: topPad + 10, paddingHorizontal: 20, paddingBottom: 16, gap: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     playerInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    avatar: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.primary + '30', borderWidth: 2, borderColor: colors.primary + '60', alignItems: 'center', justifyContent: 'center' },
+    avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary + '30', borderWidth: 2, borderColor: colors.primary + '60', alignItems: 'center', justifyContent: 'center' },
+    avatarImg: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: colors.primary + '60' },
     avatarText: { fontSize: 16, fontWeight: '700', color: colors.primary, fontFamily: 'Inter_700Bold' },
+    avatarEmoji: { fontSize: 22 },
     playerDetails: { flex: 1 },
     greeting: { fontSize: 11, color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular' },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 },
