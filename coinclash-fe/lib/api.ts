@@ -74,7 +74,7 @@ export interface NotificationItem {
 export const api = {
   // Auth
   signup: (email: string, username: string, password: string, phone: string, referral_code?: string) =>
-    request<{ success: boolean; message: string; email: string; requiresOtp: boolean; resendCooldown: number }>('/auth/signup/initiate', {
+    request<{ success: boolean; message: string; email: string; requiresOtp?: boolean; resendCooldown?: number; token?: string; user?: User }>('/auth/signup/initiate', {
       method: 'POST', body: JSON.stringify({ email, username, password, phone, referral_code }),
     }),
   signupVerify: (email: string, code: string, referral_code?: string) =>
