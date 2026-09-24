@@ -59,7 +59,12 @@ async def create_reserved_account(data: ReservedAccountRequest = None, current_u
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    if user.get("reserved_account_number"):
+    # Ignore mock account data if present
+    existing_acc = user.get("reserved_account_number")
+    existing_bank = user.get("reserved_bank_name")
+    is_mock = existing_acc == "0123456789" or existing_bank == "Mock Bank"
+
+    if existing_acc and not is_mock:
         return {
             "bankName": user["reserved_bank_name"],
             "accountNumber": user["reserved_account_number"],

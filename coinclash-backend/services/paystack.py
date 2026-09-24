@@ -121,6 +121,18 @@ class PaystackClient:
             data = response.json()
             if data.get("status"):
                 return data["data"]
+            
+            # If customer already has a dedicated account on Paystack, retrieve it from customer object
+            try:
+                cust_details = await PaystackClient.get_customer(customer_code)
+                if cust_details:
+                    if cust_details.get("dedicated_account"):
+                        return cust_details["dedicated_account"]
+                    if cust_details.get("dedicated_accounts") and len(cust_details["dedicated_accounts"]) > 0:
+                        return cust_details["dedicated_accounts"][0]
+            except Exception:
+                pass
+
             logger.error(f"Failed to create DVA: {data}")
             raise Exception(f"Paystack error: {data.get('message', 'Unknown error')}")
 
