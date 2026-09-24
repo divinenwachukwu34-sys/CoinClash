@@ -509,22 +509,7 @@ export default function ProfileScreen() {
             </Pressable>
           )}
 
-          <Pressable style={s.settingsItem} onPress={async () => {
-            if (Platform.OS === 'web') {
-              if (window.confirm('Log out from all devices? You will need to log in again on all phones/browsers.')) {
-                await logoutAll();
-              }
-            } else {
-              Alert.alert('Log out all devices', 'This will terminate your session on all phones and browsers.', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Log Out Everywhere', style: 'destructive', onPress: async () => { await logoutAll(); } },
-              ]);
-            }
-          }}>
-            <Ionicons name="phone-portrait-outline" size={18} color={colors.mutedForeground} />
-            <Text style={s.settingsText}>Log Out All Devices</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
-          </Pressable>
+
 
           <Pressable style={[s.settingsItem, s.logoutItem]} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={18} color={colors.destructive} />
