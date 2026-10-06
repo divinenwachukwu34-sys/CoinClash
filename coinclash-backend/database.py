@@ -1,5 +1,6 @@
 import os
 import asyncpg
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 pool: asyncpg.Pool = None
@@ -35,6 +36,8 @@ async def init_db():
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_bank_name VARCHAR(255)")
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_account_number VARCHAR(50)")
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_account_name VARCHAR(255)")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_claim_at TIMESTAMP WITH TIME ZONE")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_streak INTEGER DEFAULT 0")
             
             # Ensure unique constraints on phone, username, email if not exists
             await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_uniq ON users(LOWER(username))")
@@ -527,3 +530,131 @@ async def clear_user_notifications(user_id: int) -> bool:
     async with pool.acquire() as conn:
         await conn.execute('DELETE FROM notifications WHERE user_id = $1', user_id)
         return True
+
+# ── Daily Bonus ───────────────────────────────────────────────────────────────
+STREAK_COINS = [0, 15, 20, 25, 30, 35, 40, 50]
+
+async def get_user_bonus_status(user_id: int) -> dict:
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            'SELECT last_bonus_claim_at, bonus_streak FROM users WHERE id = $1',
+            user_id
+        )
+        if not row:
+            return {
+                "canClaim": False,
+                "streak": 0,
+                "nextStreak": 1,
+                "coinsToday": 15,
+                "hoursUntilNext": 24,
+                "lastClaimAt": None
+            }
+        
+        last_claim = row['last_bonus_claim_at']
+        streak = row['bonus_streak'] or 0
+
+        if not last_claim:
+            return {
+                "canClaim": True,
+                "streak": 0,
+                "nextStreak": 1,
+                "coinsToday": STREAK_COINS[1],
+                "hoursUntilNext": 0,
+                "lastClaimAt": None
+            }
+        
+        now = datetime.now(timezone.utc)
+        elapsed_seconds = (now - last_claim).total_seconds()
+
+        if elapsed_seconds < 86400:  # Less than 24 hours
+            remaining_seconds = 86400 - elapsed_seconds
+            hours_until = max(1, int(remaining_seconds / 3600) + (1 if remaining_seconds % 3600 > 0 else 0))
+            next_streak = (streak % 7) + 1
+            return {
+                "canClaim": False,
+                "streak": streak,
+                "nextStreak": next_streak,
+                "coinsToday": STREAK_COINS[next_streak],
+                "hoursUntilNext": hours_until,
+                "lastClaimAt": last_claim.isoformat()
+            }
+        elif elapsed_seconds < 172800:  # 24h to 48h - streak maintained
+            next_streak = (streak % 7) + 1
+            return {
+                "canClaim": True,
+                "streak": streak,
+                "nextStreak": next_streak,
+                "coinsToday": STREAK_COINS[next_streak],
+                "hoursUntilNext": 0,
+                "lastClaimAt": last_claim.isoformat()
+            }
+        else:  # More than 48h - streak reset
+            return {
+                "canClaim": True,
+                "streak": 0,
+                "nextStreak": 1,
+                "coinsToday": STREAK_COINS[1],
+                "hoursUntilNext": 0,
+                "lastClaimAt": last_claim.isoformat()
+            }
+
+async def claim_user_bonus(user_id: int) -> dict:
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                'SELECT coin_balance, last_bonus_claim_at, bonus_streak FROM users WHERE id = $1 FOR UPDATE',
+                user_id
+            )
+            if not row:
+                raise Exception("User not found")
+            
+            last_claim = row['last_bonus_claim_at']
+            streak = row['bonus_streak'] or 0
+            now = datetime.now(timezone.utc)
+
+            if last_claim:
+                elapsed_seconds = (now - last_claim).total_seconds()
+                if elapsed_seconds < 86400:
+                    remaining_seconds = 86400 - elapsed_seconds
+                    hours_until = max(1, int(remaining_seconds / 3600) + (1 if remaining_seconds % 3600 > 0 else 0))
+                    raise Exception(f"Daily bonus already claimed. Please wait {hours_until} hour(s) before claiming again.")
+
+                if elapsed_seconds < 172800:
+                    new_streak = (streak % 7) + 1
+                    streak_broken = False
+                else:
+                    new_streak = 1
+                    streak_broken = True
+            else:
+                new_streak = 1
+                streak_broken = False
+
+            coins_awarded = STREAK_COINS[new_streak]
+            
+            # Update user
+            res_row = await conn.fetchrow(
+                '''UPDATE users 
+                   SET coin_balance = coin_balance + $1,
+                       last_bonus_claim_at = NOW(),
+                       bonus_streak = $2,
+                       updated_at = NOW()
+                   WHERE id = $3 RETURNING coin_balance''',
+                coins_awarded, new_streak, user_id
+            )
+            new_balance = res_row['coin_balance']
+
+            # Record transaction
+            await conn.execute(
+                '''INSERT INTO transactions (user_id, type, amount_coins, description, status)
+                   VALUES ($1, 'daily_bonus', $2, $3, 'success')''',
+                user_id, coins_awarded, f"Day {new_streak} daily bonus (+{coins_awarded} coins) 🎁"
+            )
+
+            return {
+                "claimed": True,
+                "coinsAwarded": coins_awarded,
+                "newBalance": new_balance,
+                "newStreak": new_streak,
+                "message": f"Claimed {coins_awarded} coins!",
+                "streakBroken": streak_broken
+            }

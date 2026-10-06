@@ -134,7 +134,9 @@ export default function HomeScreen() {
         description: `Day ${result.newStreak} daily bonus`,
       });
       setBonus((prev) => prev ? { ...prev, canClaim: false, streak: result.newStreak, hoursUntilNext: 24 } : prev);
-    } catch {}
+    } catch {
+      try { loadBonus(); } catch {}
+    }
     setClaiming(false);
   };
 
