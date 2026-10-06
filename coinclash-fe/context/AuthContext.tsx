@@ -96,16 +96,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signupInitiate = useCallback(
     async (email: string, username: string, password: string, phone: string, referralCode?: string) => {
       const res = await api.signup(email, username, password, phone, referralCode);
-      if (res.token && res.user) {
-        await persist(res.token, res.user);
-      }
       return {
-        requiresOtp: res.requiresOtp ?? false,
+        requiresOtp: res.requiresOtp ?? true,
         message: res.message,
         resendCooldown: res.resendCooldown || 60,
       };
     },
-    [persist]
+    []
   );
 
   const signupVerify = useCallback(

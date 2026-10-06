@@ -157,7 +157,7 @@ async def signup_initiate(data: SignupInitiateRequest, request: Request):
     # 10. Hash password
     password_hash = bcrypt.hashpw(pwd.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-    # 11. Create or Update user record (directly verified)
+    # 11. Create or Update unverified user record
     if not user:
         user = await database.create_unverified_user(
             email=data.email,
@@ -170,98 +170,41 @@ async def signup_initiate(data: SignupInitiateRequest, request: Request):
             flag_reason=flag_reason
         )
     else:
-        # Update existing record and mark verified
+        # Update pending password hash & details
         async with database.pool.acquire() as conn:
             await conn.execute(
                 '''UPDATE users 
-                   SET username = $1, password_hash = $2, phone = $3, device_id = $4, signup_ip = $5, is_flagged = $6, flag_reason = $7, is_verified = TRUE 
+                   SET username = $1, password_hash = $2, phone = $3, device_id = $4, signup_ip = $5, is_flagged = $6, flag_reason = $7 
                    WHERE id = $8''',
                 clean_username, password_hash, clean_phone, device_id, ip, is_flagged, flag_reason, user["id"]
             )
-            user = await database.get_user_by_id(user["id"])
 
-    # Setup Paystack customer and DVA account (optional background)
-    try:
-        customer = await PaystackClient.get_or_create_customer(
-            email=user["email"],
-            first_name=user["username"],
-            last_name="CoinClash Player",
-            phone=user.get("phone") or ""
-        )
-        dva = await PaystackClient.create_dedicated_account(customer["customer_code"])
-        await database.update_user_reserved_account(
-            user["id"],
-            customer["customer_code"],
-            dva["bank"]["name"],
-            dva["account_number"],
-            dva["account_name"]
-        )
-        user = await database.get_user_by_id(user["id"])
-    except Exception as e:
-        logger.error(f"[DVA] Dedicated account setup notice for {data.email}: {e}")
-
-    # Process Referral Code
-    referral_message = None
-    if data.referral_code:
-        ref_code = data.referral_code.strip().upper()
-        referrer = await database.get_user_by_referral_code(ref_code)
-        if referrer and referrer["id"] != user["id"] and referrer["email"].lower() != user["email"].lower():
-            is_abuse = user.get("is_flagged", False) or referrer.get("is_flagged", False)
-            ref_status = "rejected" if is_abuse else "pending"
-            reject_reason = "Flagged for suspicious multi-account activity" if is_abuse else None
-            try:
-                async with database.pool.acquire() as conn:
-                    existing_ref = await conn.fetchrow('SELECT 1 FROM referrals WHERE referred_id = $1', user["id"])
-                    if not existing_ref:
-                        await conn.execute(
-                            '''INSERT INTO referrals (referrer_id, referred_id, bonus_paid, status, rejection_reason) 
-                               VALUES ($1, $2, FALSE, $3, $4)''',
-                            referrer["id"], user["id"], ref_status, reject_reason
-                        )
-                        if not is_abuse:
-                            referral_message = f"Referral code applied! You and {referrer['username']} will receive bonus coins upon first deposit 🎉"
-            except Exception as e:
-                logger.error(f"Error recording referral: {e}")
-
-    # Add welcome notification
-    try:
-        await database.create_notification(
-            user["id"],
-            "🎉 Welcome to CoinClash!",
-            "Your account has been created! You received +100 Welcome Coins. Enter matches to start winning!",
-            "welcome"
-        )
-    except Exception:
-        pass
-
-    # Create Session & JWT
-    session_id = str(uuid.uuid4())
-    await database.create_user_session(
+    # 12. Issue 6-digit OTP
+    success, otp_res, retry_after = await issue_otp(
+        target=data.email,
+        purpose="signup",
         user_id=user["id"],
-        session_token=session_id,
-        device_id=device_id,
-        ip_address=ip,
-        user_agent=user_agent
+        username=clean_username
     )
-    token = create_jwt_token(user["id"], user["email"], session_id, user.get("token_version", 1))
+    if not success:
+        raise HTTPException(status_code=429, detail=otp_res)
 
-    # Audit Log
+    # 13. Audit Log
     await database.log_security_event(
-        action="SIGNUP_SUCCESS",
+        action="SIGNUP_INITIATED",
         user_id=user["id"],
         ip_address=ip,
         user_agent=user_agent,
         device_id=device_id,
-        details={"email": data.email, "username": clean_username}
+        details={"email": data.email, "username": clean_username, "is_flagged": is_flagged}
     )
 
     return {
         "success": True,
-        "token": token,
-        "user": format_user_dict(user),
-        "referralMessage": referral_message,
-        "message": "Account created successfully!",
-        "requiresOtp": False
+        "message": f"Verification code sent to {data.email}. Code expires in 5 minutes.",
+        "email": data.email,
+        "requiresOtp": True,
+        "resendCooldown": 60
     }
 
 # ── 2. SIGNUP: Verify OTP and Activate Account ──────────────────────────────
@@ -491,6 +434,13 @@ async def login(data: LoginRequest, request: Request):
                 status_code=401,
                 detail=f"Incorrect password. {remaining} attempt(s) remaining before temporary lockout."
             )
+    if not user.get("is_verified", False):
+        # Issue fresh signup OTP so they can complete verification
+        await issue_otp(user["email"], purpose="signup", user_id=user["id"], username=user["username"])
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is not verified yet. We just sent a fresh 6-digit verification code to your email."
+        )
 
     # 7. Success: Reset failed attempts & update last login
     await database.reset_failed_logins(user["id"])

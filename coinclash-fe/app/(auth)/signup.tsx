@@ -131,12 +131,8 @@ export default function SignupScreen() {
         cleanPhone,
         referralCode.trim() || undefined
       );
-      if (res.requiresOtp) {
-        setResendSeconds(res.resendCooldown || 60);
-        setShowOtpModal(true);
-      } else {
-        router.replace('/(tabs)');
-      }
+      setResendSeconds(res.resendCooldown || 60);
+      setShowOtpModal(true);
     } catch (err: any) {
       setErrorMsg(err.message ?? 'Something went wrong. Please try again.');
     } finally {
