@@ -14,6 +14,7 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "noreply@coinclash.live")
 
 def get_smtp_config():
     """Dynamically read SMTP settings from environment variables."""
@@ -25,7 +26,8 @@ def get_smtp_config():
         port = 587
     user = os.getenv("SMTP_USER", "").strip()
     password = os.getenv("SMTP_PASS", "").strip()
-    return host, port, user, password
+    from_email = os.getenv("SMTP_FROM", "noreply@coinclash.live").strip() or "noreply@coinclash.live"
+    return host, port, user, password, from_email
 
 def generate_secure_otp() -> str:
     """Generate a cryptographically secure 6-digit numeric OTP."""
@@ -112,7 +114,7 @@ async def verify_otp_code(target: str, code: str, purpose: str) -> Tuple[bool, s
 
 def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: str = "signup") -> bool:
     """Send branded OTP email via SMTP with non-sensitive logging and SSL/TLS support."""
-    host, port, user, password = get_smtp_config()
+    host, port, user, password, from_email = get_smtp_config()
 
     if not user or not password:
         logger.error(
@@ -126,7 +128,7 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
         title = "Email Verification" if purpose == "signup" else "Password Reset"
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"🔐 {otp_code} — Your CoinClash {title} Code"
-        msg["From"] = f"CoinClash Security <{user}>"
+        msg["From"] = f"CoinClash Security <{from_email}>"
         msg["To"] = to_email
 
         html = f"""
@@ -162,17 +164,17 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
         """
         msg.attach(MIMEText(html, "html"))
 
-        logger.info(f"[OTP EMAIL] Attempting SMTP delivery to {to_email} via {host}:{port}...")
+        logger.info(f"[OTP EMAIL] Attempting SMTP delivery to {to_email} from {from_email} via {host}:{port}...")
 
         if port == 465:
             with smtplib.SMTP_SSL(host, port, timeout=15) as server:
                 server.login(user, password)
-                server.sendmail(user, to_email, msg.as_string())
+                server.sendmail(from_email, to_email, msg.as_string())
         else:
             with smtplib.SMTP(host, port, timeout=15) as server:
                 server.starttls()
                 server.login(user, password)
-                server.sendmail(user, to_email, msg.as_string())
+                server.sendmail(from_email, to_email, msg.as_string())
 
         logger.info(f"[OTP EMAIL SUCCESS] Successfully sent OTP verification email to {to_email}")
         return True
