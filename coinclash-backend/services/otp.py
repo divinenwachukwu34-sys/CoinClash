@@ -15,6 +15,18 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 
+def get_smtp_config():
+    """Dynamically read SMTP settings from environment variables."""
+    host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+    port_str = os.getenv("SMTP_PORT", "587").strip()
+    try:
+        port = int(port_str)
+    except ValueError:
+        port = 587
+    user = os.getenv("SMTP_USER", "").strip()
+    password = os.getenv("SMTP_PASS", "").strip()
+    return host, port, user, password
+
 def generate_secure_otp() -> str:
     """Generate a cryptographically secure 6-digit numeric OTP."""
     return str(secrets.randbelow(900000) + 100000)
@@ -56,11 +68,13 @@ async def issue_otp(
     
     # Dispatch OTP via email if target is email
     if "@" in clean_target:
-        send_otp_email(clean_target, code, username=username, purpose=purpose)
+        email_sent = send_otp_email(clean_target, code, username=username, purpose=purpose)
+        if not email_sent:
+            logger.warning(f"[OTP] OTP code generated for {clean_target} but email dispatch failed. Check server SMTP logs.")
     else:
-        logger.info(f"[OTP SMS] OTP code for {clean_target}: {code}")
+        logger.info(f"[OTP SMS] OTP code issued for phone {clean_target}")
 
-    logger.info(f"[OTP] Generated {purpose} OTP for {clean_target} -> {code}")
+    logger.info(f"[OTP] Issued {purpose} OTP for {clean_target}")
     return True, code, 0
 
 async def verify_otp_code(target: str, code: str, purpose: str) -> Tuple[bool, str]:
@@ -97,16 +111,22 @@ async def verify_otp_code(target: str, code: str, purpose: str) -> Tuple[bool, s
     return True, ""
 
 def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: str = "signup") -> bool:
-    """Send branded OTP email via SMTP."""
-    if not SMTP_USER or not SMTP_PASS:
-        logger.info(f"[OTP EMAIL MOCK] Sending OTP {otp_code} to {to_email} (SMTP not configured in .env)")
-        return True
+    """Send branded OTP email via SMTP with non-sensitive logging and SSL/TLS support."""
+    host, port, user, password = get_smtp_config()
+
+    if not user or not password:
+        logger.error(
+            f"[OTP EMAIL ERROR] Cannot deliver OTP email to {to_email}. "
+            f"SMTP_USER or SMTP_PASS environment variables are missing or empty in container environment! "
+            f"(Configured host={host}, port={port}, SMTP_USER_CONFIGURED={'YES' if user else 'NO'})"
+        )
+        return False
 
     try:
         title = "Email Verification" if purpose == "signup" else "Password Reset"
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"🔐 {otp_code} — Your CoinClash {title} Code"
-        msg["From"] = f"CoinClash Security <{SMTP_USER}>"
+        msg["From"] = f"CoinClash Security <{user}>"
         msg["To"] = to_email
 
         html = f"""
@@ -142,13 +162,20 @@ def send_otp_email(to_email: str, otp_code: str, username: str = "", purpose: st
         """
         msg.attach(MIMEText(html, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, to_email, msg.as_string())
+        logger.info(f"[OTP EMAIL] Attempting SMTP delivery to {to_email} via {host}:{port}...")
 
-        logger.info(f"[OTP] Successfully emailed OTP to {to_email}")
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+                server.login(user, password)
+                server.sendmail(user, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                server.starttls()
+                server.login(user, password)
+                server.sendmail(user, to_email, msg.as_string())
+
+        logger.info(f"[OTP EMAIL SUCCESS] Successfully sent OTP verification email to {to_email}")
         return True
     except Exception as e:
-        logger.error(f"[OTP] Email sending failed: {e}")
+        logger.error(f"[OTP EMAIL FAILURE] Failed delivering OTP email to {to_email} via {host}:{port}: {type(e).__name__} - {str(e)}")
         return False
