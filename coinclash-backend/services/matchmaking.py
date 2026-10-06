@@ -42,11 +42,12 @@ class MatchmakingHub:
     def _queue_key(self, game_type: str, stake: int) -> str:
         return f"{game_type}:{stake}"
 
-    async def add_player(self, game_type: str, stake: int, user_id: int, username: str, ws: WebSocket) -> Optional[MatchRoom]:
+    async def add_player(self, game_type: str, stake: int, user_id: int, username: str, avatar: str, ws: WebSocket) -> Optional[MatchRoom]:
         key = self._queue_key(game_type, stake)
         player_entry = {
             "user_id": user_id,
             "username": username,
+            "avatar": avatar,
             "ws": ws,
             "game_type": game_type,
             "stake": stake,
@@ -68,9 +69,10 @@ class MatchmakingHub:
             # Remove any stale entry for same user
             self.queues[key] = [p for p in self.queues[key] if p["user_id"] != user_id]
 
-            # Try to pair with existing waiting player
-            if len(self.queues[key]) > 0:
-                opponent = self.queues[key].pop(0)
+            # Try to pair with existing waiting player (enforce distinct user_id)
+            opponent_idx = next((i for i, p in enumerate(self.queues[key]) if p["user_id"] != user_id), None)
+            if opponent_idx is not None:
+                opponent = self.queues[key].pop(opponent_idx)
                 room_id = str(uuid.uuid4())
                 room = MatchRoom(room_id, game_type, stake, opponent, player_entry)
                 self.active_rooms[room_id] = room

@@ -6,6 +6,7 @@ export interface MatchState {
   status: 'idle' | 'searching' | 'matched' | 'playing' | 'ended' | 'offline_ai';
   roomId: string | null;
   opponentUsername: string;
+  opponentAvatar?: string;
   opponentId: number | null;
   opponentProgress: number;
   opponentScore: number;
@@ -31,6 +32,7 @@ export function useLiveMatch(gameType: string, stake: number) {
     status: isPractice ? 'offline_ai' : 'idle',
     roomId: null,
     opponentUsername: isPractice ? 'Bot Player' : '',
+    opponentAvatar: 'avatar_1',
     opponentId: null,
     opponentProgress: 0,
     opponentScore: 0,
@@ -47,6 +49,7 @@ export function useLiveMatch(gameType: string, stake: number) {
         status: 'offline_ai',
         roomId: null,
         opponentUsername: 'Bot Player',
+        opponentAvatar: 'avatar_1',
         opponentId: null,
         opponentProgress: 0,
         opponentScore: 0,
@@ -84,6 +87,7 @@ export function useLiveMatch(gameType: string, stake: number) {
             status: 'matched',
             roomId: data.roomId,
             opponentUsername: data.opponentUsername,
+            opponentAvatar: data.opponentAvatar,
             opponentId: data.opponentId,
           }));
         } else if (data.event === 'OPPONENT_PROGRESS') {

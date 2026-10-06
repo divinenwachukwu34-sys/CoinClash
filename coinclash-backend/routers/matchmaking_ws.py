@@ -33,13 +33,14 @@ async def websocket_matchmaking_endpoint(
     user_id = user_payload.get("userId")
     user_record = await database.get_user_by_id(user_id)
     username = (user_record.get("username") if user_record else None) or user_payload.get("username") or f"Player_{user_id}"
+    avatar = (user_record.get("avatar") if user_record else None) or "avatar_1"
 
     await websocket.accept()
 
     try:
         logger.info(f"[WS MATCHMAKING] User {username} (ID: {user_id}) joined queue for {game} @ {stake} coins")
         # 1. Join matchmaking queue or get matched room
-        room = await hub.add_player(game_type=game, stake=stake, user_id=user_id, username=username, ws=websocket)
+        room = await hub.add_player(game_type=game, stake=stake, user_id=user_id, username=username, avatar=avatar, ws=websocket)
 
         if not room:
             # Player is waiting in queue
@@ -53,8 +54,8 @@ async def websocket_matchmaking_endpoint(
             # Matched with an opponent! Notify both players
             p1_id = list(room.players.keys())[0]
             p2_id = list(room.players.keys())[1]
-            p1_name = room.players[p1_id]["username"]
-            p2_name = room.players[p2_id]["username"]
+            p1_player = room.players[p1_id]
+            p2_player = room.players[p2_id]
 
             # Send MATCH_FOUND to player 1
             if p1_id in room.sockets:
@@ -63,7 +64,8 @@ async def websocket_matchmaking_endpoint(
                         "event": "MATCH_FOUND",
                         "roomId": room.room_id,
                         "opponentId": p2_id,
-                        "opponentUsername": p2_name,
+                        "opponentUsername": p2_player.get("username", f"Player_{p2_id}"),
+                        "opponentAvatar": p2_player.get("avatar", "avatar_1"),
                         "game": game,
                         "stake": stake
                     })
@@ -77,7 +79,8 @@ async def websocket_matchmaking_endpoint(
                         "event": "MATCH_FOUND",
                         "roomId": room.room_id,
                         "opponentId": p1_id,
-                        "opponentUsername": p1_name,
+                        "opponentUsername": p1_player.get("username", f"Player_{p1_id}"),
+                        "opponentAvatar": p1_player.get("avatar", "avatar_1"),
                         "game": game,
                         "stake": stake
                     })

@@ -52,6 +52,8 @@ async def close_db():
         await pool.close()
 
 async def get_user_by_id(user_id: int) -> Optional[dict]:
+    if not pool:
+        return None
     async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM users WHERE id = $1', user_id)
         return dict(row) if row else None
@@ -352,6 +354,8 @@ async def apply_game_result(
     user_id: int, net_coins: int, stake: int, won: bool, 
     prize: int, game_type: str, player_score: int, opponent_score: int
 ) -> dict:
+    if not pool:
+        return {"newBalance": 0, "gameId": 0}
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
