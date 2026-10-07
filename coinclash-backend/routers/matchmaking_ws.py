@@ -127,31 +127,33 @@ async def websocket_matchmaking_endpoint(
                     stake_amount = resolution["stake"]
 
                     # Settle coins in database if stake > 0
-                    if stake_amount > 0:
-                        try:
-                            net_win = prize - stake_amount
-                            await database.apply_game_result(
-                                user_id=winner_id,
-                                net_coins=net_win,
-                                stake=stake_amount,
-                                won=True,
-                                prize=prize,
-                                game_type=game,
-                                player_score=resolution["scores"][winner_id]["score"],
-                                opponent_score=resolution["scores"][loser_id]["score"]
-                            )
-                            await database.apply_game_result(
-                                user_id=loser_id,
-                                net_coins=-stake_amount,
-                                stake=stake_amount,
-                                won=False,
-                                prize=0,
-                                game_type=game,
-                                player_score=resolution["scores"][loser_id]["score"],
-                                opponent_score=resolution["scores"][winner_id]["score"]
-                            )
-                        except Exception as e:
-                            logger.error(f"Error persisting game results: {e}")
+                    if resolution.get("is_fresh", False):
+                        resolution["is_fresh"] = False
+                        if stake_amount > 0:
+                            try:
+                                net_win = prize - stake_amount
+                                await database.apply_game_result(
+                                    user_id=winner_id,
+                                    net_coins=net_win,
+                                    stake=stake_amount,
+                                    won=True,
+                                    prize=prize,
+                                    game_type=game,
+                                    player_score=resolution["scores"][winner_id]["score"],
+                                    opponent_score=resolution["scores"][loser_id]["score"]
+                                )
+                                await database.apply_game_result(
+                                    user_id=loser_id,
+                                    net_coins=-stake_amount,
+                                    stake=stake_amount,
+                                    won=False,
+                                    prize=0,
+                                    game_type=game,
+                                    player_score=resolution["scores"][loser_id]["score"],
+                                    opponent_score=resolution["scores"][winner_id]["score"]
+                                )
+                            except Exception as e:
+                                logger.error(f"Error persisting game results: {e}")
 
                     # Broadcast GAME_OVER to both players
                     for uid in [winner_id, loser_id]:

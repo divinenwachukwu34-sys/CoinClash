@@ -72,30 +72,17 @@ export default function PlayScreen() {
   }, [startSearching]);
 
   // When live match found or switched to bot match, start countdown
+  // Handle authoritative GAME_OVER event from backend in live match
   useEffect(() => {
-    if (matchState.status === 'matched') {
-      const t = setTimeout(() => {
-        setPhase('countdown');
-        setCount(3);
-      }, 2000);
-      return () => clearTimeout(t);
-    } else if (matchState.status === 'offline_ai') {
-      setPhase('countdown');
-      setCount(3);
-    }
-  }, [matchState.status]);
-
-  const finishGame = useCallback(
-    (playerTime: number, opponentTime: number, won: boolean) => {
-      if (hasFinished.current) return;
+    if (matchState.status === 'ended' && matchState.gameResult && !hasFinished.current) {
       hasFinished.current = true;
+      if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
 
-      const prize = won ? (stake > 0 ? stake * 2 - 5 : 0) : 0;
-
-      // In real live match, submit to websocket
-      if (matchState.status === 'matched' && matchState.roomId) {
-        submitFinalScore(won ? 100 : 50, playerTime, '1/1');
-      }
+      const res = matchState.gameResult;
+      const won = res.won;
+      const prize = res.prize;
+      const playerTime = res.playerTimeMs;
+      const opponentTime = res.opponentTimeMs;
 
       if (stake > 0) {
         if (won) {
@@ -124,17 +111,69 @@ export default function PlayScreen() {
           opponentTime: String(opponentTime),
           prize: String(prize),
           stake: String(stake),
-          opponentName: matchState.opponentUsername || (isPractice ? 'Bot Player' : 'Opponent'),
+          opponentName: matchState.opponentUsername || 'Opponent',
+          playerAcc: res.playerAcc,
+          aiAcc: res.aiAcc,
+          playerTimeMs: String(playerTime),
+          aiTimeMs: String(opponentTime),
+        },
+      });
+    }
+  }, [matchState.status, matchState.gameResult, matchState.opponentUsername, stake, addCoins, addTransaction, addGameResult, router]);
+
+  const finishGame = useCallback(
+    (playerTime: number, opponentTime: number, won: boolean) => {
+      if (hasFinished.current) return;
+
+      // In real live match, submit score to websocket and wait for authoritative GAME_OVER
+      if (matchState.status === 'matched' && matchState.roomId) {
+        const score = won ? 100 : (playerTime > 0 ? 50 : 0);
+        submitFinalScore(score, playerTime, score > 0 ? '1/1' : '0/1');
+        setPhase('done');
+        return;
+      }
+
+      // Offline practice bot mode
+      hasFinished.current = true;
+      const prize = won ? (stake > 0 ? stake * 2 - 5 : 0) : 0;
+      if (stake > 0) {
+        if (won) {
+          addCoins(prize);
+          addTransaction({
+            type: 'win',
+            amount: prize,
+            description: `Won ${stake}-coin match against Bot Player`,
+          });
+        } else {
+          addTransaction({
+            type: 'loss',
+            amount: stake,
+            description: `Lost ${stake}-coin match against Bot Player`,
+          });
+        }
+      }
+
+      addGameResult({ stake, won, playerTime, opponentTime, prize });
+
+      router.replace({
+        pathname: '/game/result',
+        params: {
+          won: won ? '1' : '0',
+          playerTime: String(playerTime),
+          opponentTime: String(opponentTime),
+          prize: String(prize),
+          stake: String(stake),
+          opponentName: 'Bot Player',
         },
       });
     },
-    [stake, addCoins, addTransaction, addGameResult, router, matchState.status, matchState.roomId, matchState.opponentUsername, submitFinalScore, isPractice]
+    [stake, addCoins, addTransaction, addGameResult, router, matchState.status, matchState.roomId, submitFinalScore]
   );
 
   const handleTap = useCallback(() => {
     const currentPhase = phaseRef.current;
 
-    if (currentPhase === 'searching') return;
+    if (currentPhase === 'searching' || currentPhase === 'done') return;
 
     if (currentPhase === 'countdown') {
       // Too early!
@@ -143,9 +182,7 @@ export default function PlayScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const oppTime = 350;
       opponentTimeRef.current = oppTime;
-      setTimeout(() => {
-        finishGame(0, oppTime, false);
-      }, 1200);
+      finishGame(0, oppTime, false);
       return;
     }
 
@@ -161,19 +198,18 @@ export default function PlayScreen() {
     tapScale.value = withSequence(withSpring(0.9, { damping: 8 }), withSpring(1));
     Haptics.impactAsync(won ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
 
-    sendProgress(100, 1000, playerTime);
-
-    setTimeout(() => finishGame(playerTime, opponentTime, won), 600);
+    sendProgress(100, 100, playerTime);
+    finishGame(playerTime, opponentTime, won);
   }, [finishGame, tapScale, sendProgress]);
 
-  // Countdown ticking
+  // Countdown ticking & ready timer
   useEffect(() => {
     if (phase !== 'countdown') return;
 
     if (count <= 0) {
       // Transition to ready
       const t = setTimeout(() => {
-        // Medium AI reaction time: 380ms - 580ms (fair and beatable)
+        const isLiveMatch = matchState.status === 'matched';
         const oppMs = isPractice
           ? Math.round(420 + Math.random() * 180)
           : Math.round(320 + Math.random() * 250);
@@ -184,13 +220,24 @@ export default function PlayScreen() {
         bgBrightness.value = withTiming(1, { duration: 100 });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-        opponentTimerRef.current = setTimeout(() => {
-          if (!hasFinished.current && phaseRef.current === 'ready') {
-            const playerTime = Date.now() - readyTimeRef.current;
-            setPhase('done');
-            finishGame(playerTime, oppMs, false);
-          }
-        }, oppMs);
+        if (isLiveMatch) {
+          // Live match timeout: if player does not tap within 3.5s, submit score 0 / 3500ms
+          opponentTimerRef.current = setTimeout(() => {
+            if (!hasFinished.current && phaseRef.current === 'ready') {
+              setPhase('done');
+              submitFinalScore(0, 3500, '0/1');
+            }
+          }, 3500);
+        } else {
+          // Offline bot timeout
+          opponentTimerRef.current = setTimeout(() => {
+            if (!hasFinished.current && phaseRef.current === 'ready') {
+              const playerTime = Date.now() - readyTimeRef.current;
+              setPhase('done');
+              finishGame(playerTime, oppMs, false);
+            }
+          }, oppMs);
+        }
       }, 400);
       return () => clearTimeout(t);
     }
@@ -198,7 +245,7 @@ export default function PlayScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const t = setTimeout(() => setCount((c) => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, count, finishGame, bgBrightness, isPractice]);
+  }, [phase, count, finishGame, bgBrightness, isPractice, matchState.status, submitFinalScore]);
 
   useEffect(() => {
     return () => {

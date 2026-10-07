@@ -23,6 +23,7 @@ class MatchRoom:
         self.scores: Dict[int, dict] = {}
         self.created_at = time.time()
         self.finished = False
+        self.resolution: Optional[dict] = None
 
     async def broadcast(self, message: dict):
         for uid, ws in list(self.sockets.items()):
@@ -119,6 +120,10 @@ class MatchmakingHub:
             room = self.active_rooms.get(room_id)
             if not room:
                 return None
+
+            if room.finished and room.resolution:
+                return room.resolution
+
             room.scores[user_id] = score_data
 
             # If both players submitted scores, resolve match
@@ -129,7 +134,7 @@ class MatchmakingHub:
                 s1, s2 = room.scores[u1], room.scores[u2]
 
                 # Scoring resolution:
-                # Comparison priority: higher score/accuracy -> lower time
+                # Comparison priority: higher score/accuracy -> lower time -> deterministic tie breaker
                 val1 = s1.get("score", 0)
                 val2 = s2.get("score", 0)
                 time1 = s1.get("timeMs", 999999)
@@ -140,7 +145,12 @@ class MatchmakingHub:
                 elif val2 > val1:
                     winner_id = u2
                 else:
-                    winner_id = u1 if time1 <= time2 else u2
+                    if time1 < time2:
+                        winner_id = u1
+                    elif time2 < time1:
+                        winner_id = u2
+                    else:
+                        winner_id = min(u1, u2)
 
                 loser_id = u2 if winner_id == u1 else u1
                 prize = (room.stake * 2 - 5) if room.stake > 0 else 0
@@ -150,8 +160,10 @@ class MatchmakingHub:
                     "loser_id": loser_id,
                     "prize": prize,
                     "stake": room.stake,
-                    "scores": room.scores
+                    "scores": room.scores,
+                    "is_fresh": True
                 }
+                room.resolution = resolution
                 return resolution
             return None
 

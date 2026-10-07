@@ -104,56 +104,126 @@ def test_websocket_real_user_matchmaking():
 
     print("[PASS] test_websocket_real_user_matchmaking")
 
-def test_websocket_game_over_score_resolution():
-    """Verify GAME_SUBMIT resolves match results accurately based on scores."""
+def test_tap_race_both_players_score_zero():
+    """Verify 0-0 no-tap match (both players timeout with 0 score): exactly 1 winner and 1 loser determined, NEVER double loss."""
     client = TestClient(app)
 
-    token_c = generate_test_jwt(301, "User_Charlie")
-    token_d = generate_test_jwt(302, "User_Delta")
+    token_e1 = generate_test_jwt(401, "ZeroPlayer1")
+    token_e2 = generate_test_jwt(402, "ZeroPlayer2")
 
-    with client.websocket_connect(f"/api/ws/match?token={token_c}&game=tap_race&stake=100") as ws_c:
-        ws_c.receive_json() # QUEUED
-        with client.websocket_connect(f"/api/ws/match?token={token_d}&game=tap_race&stake=100") as ws_d:
-            msg_c_match = ws_c.receive_json() # MATCH_FOUND
-            msg_d_match = ws_d.receive_json() # MATCH_FOUND
+    with client.websocket_connect(f"/api/ws/match?token={token_e1}&game=play&stake=50") as ws1:
+        ws1.receive_json() # QUEUED
+        with client.websocket_connect(f"/api/ws/match?token={token_e2}&game=play&stake=50") as ws2:
+            m1 = ws1.receive_json()
+            m2 = ws2.receive_json()
+            room_id = m1["roomId"]
 
-            room_id = msg_c_match["roomId"]
+            # Both submit 0 taps / timeout score 0, 3500ms
+            ws1.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 0, "timeMs": 3500, "accuracy": "0/1"})
+            ws2.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 0, "timeMs": 3500, "accuracy": "0/1"})
 
-            # User C submits lower score
-            ws_c.send_json({
-                "event": "GAME_SUBMIT",
-                "roomId": room_id,
-                "score": 50,
-                "timeMs": 3000,
-                "accuracy": "5/10"
-            })
+            res1 = ws1.receive_json()
+            res2 = ws2.receive_json()
 
-            # User D submits higher score
-            ws_d.send_json({
-                "event": "GAME_SUBMIT",
-                "roomId": room_id,
-                "score": 85,
-                "timeMs": 2800,
-                "accuracy": "8/10"
-            })
+            assert res1["event"] == "GAME_OVER"
+            assert res2["event"] == "GAME_OVER"
 
-            msg_c_over = ws_c.receive_json()
-            msg_d_over = ws_d.receive_json()
+            # Both receive identical scores: playerScore 0 vs opponentScore 0
+            assert res1["playerScore"] == 0 and res1["opponentScore"] == 0
+            assert res2["playerScore"] == 0 and res2["opponentScore"] == 0
 
-            assert msg_c_over["event"] == "GAME_OVER"
-            assert msg_c_over["won"] is False
-            assert msg_c_over["playerScore"] == 50
-            assert msg_c_over["opponentScore"] == 85
+            # Exactly one winner and one loser (res1["won"] != res2["won"])
+            assert res1["won"] ^ res2["won"], f"Must not be double loss or double win! got P1 won={res1['won']}, P2 won={res2['won']}"
 
-            assert msg_d_over["event"] == "GAME_OVER"
-            assert msg_d_over["won"] is True
-            assert msg_d_over["playerScore"] == 85
-            assert msg_d_over["opponentScore"] == 50
+    print("[PASS] test_tap_race_both_players_score_zero")
 
-    print("[PASS] test_websocket_game_over_score_resolution")
+def test_player1_wins_and_player2_wins():
+    """Verify Player 1 wins when scoring higher, and Player 2 wins when scoring higher."""
+    client = TestClient(app)
+
+    # Test P1 Wins
+    t1 = generate_test_jwt(501, "P1_Fast")
+    t2 = generate_test_jwt(502, "P2_Slow")
+    with client.websocket_connect(f"/api/ws/match?token={t1}&game=play&stake=10") as ws1:
+        ws1.receive_json()
+        with client.websocket_connect(f"/api/ws/match?token={t2}&game=play&stake=10") as ws2:
+            m1 = ws1.receive_json()
+            m2 = ws2.receive_json()
+            room_id = m1["roomId"]
+
+            ws1.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 100, "timeMs": 280, "accuracy": "1/1"})
+            ws2.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 100, "timeMs": 450, "accuracy": "1/1"})
+
+            r1 = ws1.receive_json()
+            r2 = ws2.receive_json()
+
+            assert r1["won"] is True, "Player 1 (280ms) should win against Player 2 (450ms)"
+            assert r2["won"] is False
+            assert r1["playerTimeMs"] == 280 and r1["opponentTimeMs"] == 450
+            assert r2["playerTimeMs"] == 450 and r2["opponentTimeMs"] == 280
+
+    # Test P2 Wins
+    t3 = generate_test_jwt(503, "P3_Slow")
+    t4 = generate_test_jwt(504, "P4_Fast")
+    with client.websocket_connect(f"/api/ws/match?token={t3}&game=play&stake=10") as ws3:
+        ws3.receive_json()
+        with client.websocket_connect(f"/api/ws/match?token={t4}&game=play&stake=10") as ws4:
+            m3 = ws3.receive_json()
+            m4 = ws4.receive_json()
+            room_id = m3["roomId"]
+
+            ws3.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 100, "timeMs": 520, "accuracy": "1/1"})
+            ws4.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 100, "timeMs": 310, "accuracy": "1/1"})
+
+            r3 = ws3.receive_json()
+            r4 = ws4.receive_json()
+
+            assert r3["won"] is False
+            assert r4["won"] is True, "Player 4 (310ms) should win against Player 3 (520ms)"
+            assert r3["playerTimeMs"] == 520 and r3["opponentTimeMs"] == 310
+            assert r4["playerTimeMs"] == 310 and r4["opponentTimeMs"] == 520
+
+    print("[PASS] test_player1_wins_and_player2_wins")
+
+def test_duplicate_and_simultaneous_score_submissions():
+    """Verify duplicate score submissions for the same room return identical authoritative resolution without duplicate processing."""
+    client = TestClient(app)
+
+    t5 = generate_test_jwt(601, "DupUser1")
+    t6 = generate_test_jwt(602, "DupUser2")
+
+    with client.websocket_connect(f"/api/ws/match?token={t5}&game=math_duel&stake=20") as ws5:
+        ws5.receive_json()
+        with client.websocket_connect(f"/api/ws/match?token={t6}&game=math_duel&stake=20") as ws6:
+            m5 = ws5.receive_json()
+            m6 = ws6.receive_json()
+            room_id = m5["roomId"]
+
+            # Submit scores
+            ws5.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 90, "timeMs": 2000, "accuracy": "9/10"})
+            ws6.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 80, "timeMs": 2200, "accuracy": "8/10"})
+
+            res5_a = ws5.receive_json()
+            res6_a = ws6.receive_json()
+
+            assert res5_a["won"] is True
+            assert res6_a["won"] is False
+
+            # Duplicate submission from user 5
+            ws5.send_json({"event": "GAME_SUBMIT", "roomId": room_id, "score": 90, "timeMs": 2000, "accuracy": "9/10"})
+            res5_b = ws5.receive_json()
+
+            # Resolution must be identical
+            assert res5_b["won"] == res5_a["won"]
+            assert res5_b["playerScore"] == res5_a["playerScore"]
+            assert res5_b["opponentScore"] == res5_a["opponentScore"]
+
+    print("[PASS] test_duplicate_and_simultaneous_score_submissions")
 
 if __name__ == "__main__":
     test_matchmaking_hub_unit()
     test_websocket_real_user_matchmaking()
-    test_websocket_game_over_score_resolution()
-    print("ALL MATCHMAKING TESTS PASSED SUCCESSFULLY!")
+    test_tap_race_both_players_score_zero()
+    test_player1_wins_and_player2_wins()
+    test_duplicate_and_simultaneous_score_submissions()
+    print("ALL TAP RACE MATCHMAKING & SCORING TESTS PASSED SUCCESSFULLY!")
