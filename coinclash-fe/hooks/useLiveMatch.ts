@@ -13,6 +13,9 @@ export interface MatchState {
   isPractice: boolean;
   gameResult: {
     won: boolean;
+    isDraw?: boolean;
+    cancelled?: boolean;
+    reason?: string;
     prize: number;
     playerScore: number;
     opponentScore: number;
@@ -90,6 +93,11 @@ export function useLiveMatch(gameType: string, stake: number) {
             opponentAvatar: data.opponentAvatar,
             opponentId: data.opponentId,
           }));
+        } else if (data.event === 'GAME_BEGIN') {
+          setMatchState((s) => ({
+            ...s,
+            status: 'playing',
+          }));
         } else if (data.event === 'OPPONENT_PROGRESS') {
           setMatchState((s) => ({
             ...s,
@@ -102,6 +110,9 @@ export function useLiveMatch(gameType: string, stake: number) {
             status: 'ended',
             gameResult: {
               won: data.won,
+              isDraw: data.isDraw || false,
+              cancelled: data.cancelled || false,
+              reason: data.reason || '',
               prize: data.prize,
               playerScore: data.playerScore,
               opponentScore: data.opponentScore,
@@ -117,6 +128,9 @@ export function useLiveMatch(gameType: string, stake: number) {
             status: 'ended',
             gameResult: {
               won: true,
+              isDraw: false,
+              cancelled: false,
+              reason: 'OPPONENT_DISCONNECTED',
               prize: stake > 0 ? stake * 2 - 5 : 0,
               playerScore: 100,
               opponentScore: 0,
@@ -140,6 +154,17 @@ export function useLiveMatch(gameType: string, stake: number) {
       console.log('[WS] Closed');
     };
   }, [gameType, stake, token, isPractice]);
+
+  const sendGameStart = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && matchState.roomId) {
+      wsRef.current.send(
+        JSON.stringify({
+          event: 'GAME_START',
+          roomId: matchState.roomId,
+        })
+      );
+    }
+  }, [matchState.roomId]);
 
   const sendProgress = useCallback((progress: number, score: number, timeMs: number) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && matchState.roomId) {
@@ -170,7 +195,7 @@ export function useLiveMatch(gameType: string, stake: number) {
   }, [matchState.roomId]);
 
   const switchToBotMatch = useCallback(() => {
-    if (!isPractice) return; // Disallow bot fallback for real-money matches
+    if (!isPractice) return;
     if (wsRef.current) {
       try {
         wsRef.current.send(JSON.stringify({ event: 'LEAVE_QUEUE' }));
@@ -216,6 +241,7 @@ export function useLiveMatch(gameType: string, stake: number) {
     matchState,
     searchSeconds,
     startSearching,
+    sendGameStart,
     sendProgress,
     submitFinalScore,
     switchToBotMatch,

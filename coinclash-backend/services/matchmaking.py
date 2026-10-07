@@ -2,7 +2,7 @@ import asyncio
 import uuid
 import time
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,8 @@ class MatchRoom:
             player2["user_id"]: player2["ws"]
         }
         self.scores: Dict[int, dict] = {}
+        self.started_players: Set[int] = set()
+        self.game_begun: bool = False
         self.created_at = time.time()
         self.finished = False
         self.resolution: Optional[dict] = None
@@ -127,43 +129,99 @@ class MatchmakingHub:
 
             room.scores[user_id] = score_data
 
-            # If both players submitted scores, resolve match
+            # If both players submitted scores, resolve match authoritatively
             if len(room.scores) >= 2 and not room.finished:
                 room.finished = True
                 uids = list(room.players.keys())
                 u1, u2 = uids[0], uids[1]
                 s1, s2 = room.scores[u1], room.scores[u2]
 
-                # Scoring resolution:
-                # Comparison priority: higher score/accuracy -> lower time -> deterministic tie breaker
+                started1 = u1 in room.started_players
+                started2 = u2 in room.started_players
+
                 val1 = s1.get("score", 0)
                 val2 = s2.get("score", 0)
                 time1 = s1.get("timeMs", 999999)
                 time2 = s2.get("timeMs", 999999)
 
-                if val1 > val2:
-                    winner_id = u1
-                elif val2 > val1:
-                    winner_id = u2
+                # Scenario 1: Neither player actually started the game
+                if not started1 and not started2:
+                    resolution = {
+                        "winner_id": None,
+                        "loser_id": None,
+                        "cancelled": True,
+                        "is_draw": False,
+                        "reason": "NEITHER_PLAYER_STARTED",
+                        "prize": 0,
+                        "stake": room.stake,
+                        "scores": room.scores,
+                        "is_fresh": True
+                    }
+
+                # Scenario 2: Player 1 started, Player 2 NEVER started
+                elif started1 and not started2:
+                    prize = (room.stake * 2 - 5) if room.stake > 0 else 0
+                    resolution = {
+                        "winner_id": u1,
+                        "loser_id": u2,
+                        "cancelled": False,
+                        "is_draw": False,
+                        "reason": "OPPONENT_NEVER_STARTED",
+                        "prize": prize,
+                        "stake": room.stake,
+                        "scores": room.scores,
+                        "is_fresh": True
+                    }
+
+                # Scenario 3: Player 2 started, Player 1 NEVER started
+                elif started2 and not started1:
+                    prize = (room.stake * 2 - 5) if room.stake > 0 else 0
+                    resolution = {
+                        "winner_id": u2,
+                        "loser_id": u1,
+                        "cancelled": False,
+                        "is_draw": False,
+                        "reason": "OPPONENT_NEVER_STARTED",
+                        "prize": prize,
+                        "stake": room.stake,
+                        "scores": room.scores,
+                        "is_fresh": True
+                    }
+
+                # Scenario 4 & 5: Both players started gameplay
                 else:
-                    if time1 < time2:
-                        winner_id = u1
-                    elif time2 < time1:
-                        winner_id = u2
+                    if val1 > val2:
+                        winner_id, loser_id, is_draw = u1, u2, False
+                    elif val2 > val1:
+                        winner_id, loser_id, is_draw = u2, u1, False
                     else:
-                        winner_id = min(u1, u2)
+                        # Equal score
+                        if val1 > 0:
+                            # Both scored >0: lower timeMs wins; if exact time tie, draw
+                            if time1 < time2:
+                                winner_id, loser_id, is_draw = u1, u2, False
+                            elif time2 < time1:
+                                winner_id, loser_id, is_draw = u2, u1, False
+                            else:
+                                winner_id, loser_id, is_draw = None, None, True
+                        else:
+                            # Both started and both legitimately finish with 0 taps -> DRAW / VOID!
+                            winner_id, loser_id, is_draw = None, None, True
 
-                loser_id = u2 if winner_id == u1 else u1
-                prize = (room.stake * 2 - 5) if room.stake > 0 else 0
+                    prize = (room.stake * 2 - 5) if (winner_id is not None and room.stake > 0) else 0
 
-                resolution = {
-                    "winner_id": winner_id,
-                    "loser_id": loser_id,
-                    "prize": prize,
-                    "stake": room.stake,
-                    "scores": room.scores,
-                    "is_fresh": True
-                }
+                    resolution = {
+                        "winner_id": winner_id,
+                        "loser_id": loser_id,
+                        "cancelled": is_draw,
+                        "is_draw": is_draw,
+                        "reason": "DRAW_ZERO_SCORE" if is_draw else "GAME_FINISHED",
+                        "prize": prize,
+                        "stake": room.stake,
+                        "scores": room.scores,
+                        "is_fresh": True
+                    }
+
                 room.resolution = resolution
                 return resolution
             return None

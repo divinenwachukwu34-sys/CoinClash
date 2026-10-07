@@ -93,15 +93,27 @@ async def websocket_matchmaking_endpoint(
             data = json.loads(raw_data)
             event_type = data.get("event")
 
-            if event_type == "GAME_PROGRESS":
-                # Real-time progress broadcast to opponent in room
+            if event_type == "GAME_START":
                 room_id = data.get("roomId")
-                room = await hub.get_room(room_id)
-                if room:
-                    other_uid = next((uid for uid in room.players.keys() if uid != user_id), None)
-                    if other_uid and other_uid in room.sockets:
+                room_obj = await hub.get_room(room_id)
+                if room_obj:
+                    room_obj.started_players.add(user_id)
+                    logger.info(f"[WS MATCHMAKING] User {user_id} started game in room {room_id}. Total started: {len(room_obj.started_players)}")
+                    if len(room_obj.started_players) >= 2 and not room_obj.game_begun:
+                        room_obj.game_begun = True
+                        await room_obj.broadcast({
+                            "event": "GAME_BEGIN",
+                            "roomId": room_obj.room_id
+                        })
+
+            elif event_type == "GAME_PROGRESS":
+                room_id = data.get("roomId")
+                room_obj = await hub.get_room(room_id)
+                if room_obj:
+                    other_uid = next((uid for uid in room_obj.players.keys() if uid != user_id), None)
+                    if other_uid and other_uid in room_obj.sockets:
                         try:
-                            await room.sockets[other_uid].send_json({
+                            await room_obj.sockets[other_uid].send_json({
                                 "event": "OPPONENT_PROGRESS",
                                 "progress": data.get("progress", 0),
                                 "score": data.get("score", 0),
@@ -111,7 +123,6 @@ async def websocket_matchmaking_endpoint(
                             pass
 
             elif event_type == "GAME_SUBMIT":
-                # Final score submission
                 room_id = data.get("roomId")
                 score_data = {
                     "score": data.get("score", 0),
@@ -125,11 +136,15 @@ async def websocket_matchmaking_endpoint(
                     loser_id = resolution["loser_id"]
                     prize = resolution["prize"]
                     stake_amount = resolution["stake"]
+                    is_draw = resolution.get("is_draw", False) or resolution.get("cancelled", False)
 
-                    # Settle coins in database if stake > 0
+                    room_obj = await hub.get_room(room_id)
+                    all_uids = list(room_obj.players.keys()) if room_obj else []
+
+                    # Settle coins in database if stake > 0 and winner is determined
                     if resolution.get("is_fresh", False):
                         resolution["is_fresh"] = False
-                        if stake_amount > 0:
+                        if stake_amount > 0 and winner_id and loser_id and not is_draw:
                             try:
                                 net_win = prize - stake_amount
                                 await database.apply_game_result(
@@ -156,23 +171,32 @@ async def websocket_matchmaking_endpoint(
                                 logger.error(f"Error persisting game results: {e}")
 
                     # Broadcast GAME_OVER to both players
-                    for uid in [winner_id, loser_id]:
-                        room = await hub.get_room(room_id)
-                        if room and uid in room.sockets:
-                            is_winner = (uid == winner_id)
-                            opp_uid = loser_id if is_winner else winner_id
+                    for uid in all_uids:
+                        if room_obj and uid in room_obj.sockets:
+                            is_winner = (uid == winner_id) if winner_id else False
+                            opp_uid = next((u for u in all_uids if u != uid), uid)
+                            p_score = resolution["scores"].get(uid, {}).get("score", 0)
+                            o_score = resolution["scores"].get(opp_uid, {}).get("score", 0)
+                            p_time = resolution["scores"].get(uid, {}).get("timeMs", 0)
+                            o_time = resolution["scores"].get(opp_uid, {}).get("timeMs", 0)
+                            p_acc = resolution["scores"].get(uid, {}).get("accuracy", "0/0")
+                            o_acc = resolution["scores"].get(opp_uid, {}).get("accuracy", "0/0")
+
                             try:
-                                await room.sockets[uid].send_json({
+                                await room_obj.sockets[uid].send_json({
                                     "event": "GAME_OVER",
                                     "won": is_winner,
+                                    "isDraw": is_draw,
+                                    "cancelled": resolution.get("cancelled", False),
+                                    "reason": resolution.get("reason", ""),
                                     "prize": prize if is_winner else 0,
                                     "stake": stake_amount,
-                                    "playerScore": resolution["scores"][uid]["score"],
-                                    "opponentScore": resolution["scores"][opp_uid]["score"],
-                                    "playerTimeMs": resolution["scores"][uid]["timeMs"],
-                                    "opponentTimeMs": resolution["scores"][opp_uid]["timeMs"],
-                                    "playerAcc": resolution["scores"][uid]["accuracy"],
-                                    "aiAcc": resolution["scores"][opp_uid]["accuracy"]
+                                    "playerScore": p_score,
+                                    "opponentScore": o_score,
+                                    "playerTimeMs": p_time,
+                                    "opponentTimeMs": o_time,
+                                    "playerAcc": p_acc,
+                                    "aiAcc": o_acc
                                 })
                             except Exception:
                                 pass

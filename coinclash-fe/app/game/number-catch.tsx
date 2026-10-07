@@ -28,11 +28,14 @@ export default function NumberCatchScreen() {
     matchState,
     searchSeconds,
     startSearching,
+    sendGameStart,
     sendProgress,
     submitFinalScore,
     switchToBotMatch,
     cancelSearch,
   } = useLiveMatch('number-catch', stake);
+
+  const hasSentStart = useRef(false);
 
   const [gameReady, setGameReady] = useState(false);
   const [phase, setPhase] = useState<'searching' | 'intro' | 'playing' | 'feedback' | 'done'>('searching');
@@ -58,15 +61,16 @@ export default function NumberCatchScreen() {
     startSearching();
   }, [startSearching]);
 
+  // Send GAME_START when matched
   useEffect(() => {
-    if (matchState.status === 'matched') {
-      const t = setTimeout(() => {
-        setGameReady(true);
-        setPhase('playing');
-        startTime.current = Date.now();
-      }, 1500);
-      return () => clearTimeout(t);
-    } else if (matchState.status === 'offline_ai') {
+    if (matchState.status === 'matched' && !hasSentStart.current) {
+      hasSentStart.current = true;
+      sendGameStart();
+    }
+  }, [matchState.status, sendGameStart]);
+
+  useEffect(() => {
+    if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
       setPhase('playing');
       startTime.current = Date.now();

@@ -49,11 +49,14 @@ export default function TriviaScreen() {
     matchState,
     searchSeconds,
     startSearching,
+    sendGameStart,
     sendProgress,
     submitFinalScore,
     switchToBotMatch,
     cancelSearch,
   } = useLiveMatch('trivia', stake);
+
+  const hasSentStart = useRef(false);
 
   const [gameReady, setGameReady] = useState(false);
   const questions = useRef(pickQuestions());
@@ -77,15 +80,16 @@ export default function TriviaScreen() {
     startSearching();
   }, [startSearching]);
 
+  // Send GAME_START when matched
   useEffect(() => {
-    if (matchState.status === 'matched') {
-      const t = setTimeout(() => {
-        setGameReady(true);
-        startTime.current = Date.now();
-        roundStartTime.current = Date.now();
-      }, 1500);
-      return () => clearTimeout(t);
-    } else if (matchState.status === 'offline_ai') {
+    if (matchState.status === 'matched' && !hasSentStart.current) {
+      hasSentStart.current = true;
+      sendGameStart();
+    }
+  }, [matchState.status, sendGameStart]);
+
+  useEffect(() => {
+    if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
       startTime.current = Date.now();
       roundStartTime.current = Date.now();

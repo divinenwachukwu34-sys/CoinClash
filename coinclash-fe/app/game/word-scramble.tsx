@@ -61,11 +61,14 @@ export default function WordScrambleScreen() {
     matchState,
     searchSeconds,
     startSearching,
+    sendGameStart,
     sendProgress,
     submitFinalScore,
     switchToBotMatch,
     cancelSearch,
   } = useLiveMatch('word-scramble', stake);
+
+  const hasSentStart = useRef(false);
 
   const [gameReady, setGameReady] = useState(false);
   const usedIdx = useRef<number[]>([]);
@@ -99,15 +102,16 @@ export default function WordScrambleScreen() {
     startSearching();
   }, [startSearching]);
 
+  // Send GAME_START when matched
   useEffect(() => {
-    if (matchState.status === 'matched') {
-      const t = setTimeout(() => {
-        setGameReady(true);
-        startTime.current = Date.now();
-        roundStartTime.current = Date.now();
-      }, 1500);
-      return () => clearTimeout(t);
-    } else if (matchState.status === 'offline_ai') {
+    if (matchState.status === 'matched' && !hasSentStart.current) {
+      hasSentStart.current = true;
+      sendGameStart();
+    }
+  }, [matchState.status, sendGameStart]);
+
+  useEffect(() => {
+    if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
       startTime.current = Date.now();
       roundStartTime.current = Date.now();

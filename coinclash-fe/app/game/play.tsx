@@ -44,6 +44,7 @@ export default function PlayScreen() {
     matchState,
     searchSeconds,
     startSearching,
+    sendGameStart,
     sendProgress,
     submitFinalScore,
     switchToBotMatch,
@@ -71,7 +72,14 @@ export default function PlayScreen() {
     startSearching();
   }, [startSearching]);
 
-  // When live match found or switched to bot match, start countdown
+  // Send GAME_START to server when matched
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      sendGameStart();
+      setPhase('countdown');
+    }
+  }, [matchState.status, sendGameStart]);
+
   // Handle authoritative GAME_OVER event from backend in live match
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && !hasFinished.current) {
@@ -80,11 +88,12 @@ export default function PlayScreen() {
 
       const res = matchState.gameResult;
       const won = res.won;
+      const isDraw = res.isDraw || res.cancelled;
       const prize = res.prize;
       const playerTime = res.playerTimeMs;
       const opponentTime = res.opponentTimeMs;
 
-      if (stake > 0) {
+      if (stake > 0 && !isDraw) {
         if (won) {
           addCoins(prize);
           addTransaction({
@@ -99,14 +108,22 @@ export default function PlayScreen() {
             description: `Lost ${stake}-coin match against ${matchState.opponentUsername || 'Opponent'}`,
           });
         }
+      } else if (stake > 0 && isDraw) {
+        addCoins(stake);
+        addTransaction({
+          type: 'win',
+          amount: stake,
+          description: `Draw / Cancelled ${stake}-coin match — Stake Refunded`,
+        });
       }
 
-      addGameResult({ stake, won, playerTime, opponentTime, prize });
+      addGameResult({ stake, won: isDraw ? false : won, playerTime, opponentTime, prize });
 
       router.replace({
         pathname: '/game/result',
         params: {
-          won: won ? '1' : '0',
+          won: isDraw ? '0' : won ? '1' : '0',
+          isDraw: isDraw ? '1' : '0',
           playerTime: String(playerTime),
           opponentTime: String(opponentTime),
           prize: String(prize),

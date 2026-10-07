@@ -57,11 +57,14 @@ export default function MathDuelScreen() {
     matchState,
     searchSeconds,
     startSearching,
+    sendGameStart,
     sendProgress,
     submitFinalScore,
     switchToBotMatch,
     cancelSearch,
   } = useLiveMatch('math-duel', stake);
+
+  const hasSentStart = useRef(false);
 
   const problems = useRef(Array.from({ length: ROUNDS }, buildProblem));
   const [roundIdx, setRoundIdx] = useState(0);
@@ -87,16 +90,17 @@ export default function MathDuelScreen() {
     startSearching();
   }, [startSearching]);
 
+  // Send GAME_START when matched
+  useEffect(() => {
+    if (matchState.status === 'matched' && !hasSentStart.current) {
+      hasSentStart.current = true;
+      sendGameStart();
+    }
+  }, [matchState.status, sendGameStart]);
+
   // When game begins
   useEffect(() => {
-    if (matchState.status === 'matched') {
-      const t = setTimeout(() => {
-        setGameReady(true);
-        startTime.current = Date.now();
-        roundStartTime.current = Date.now();
-      }, 2000);
-      return () => clearTimeout(t);
-    } else if (matchState.status === 'offline_ai') {
+    if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
       startTime.current = Date.now();
       roundStartTime.current = Date.now();
