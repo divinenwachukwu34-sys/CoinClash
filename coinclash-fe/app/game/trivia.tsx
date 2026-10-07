@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -27,7 +30,7 @@ const ALL_QUESTIONS = [
 ];
 
 const ROUNDS = 8;
-const PER_QUESTION_TIME_MS = 5000; // 5.0s per question
+const PER_QUESTION_TIME_MS = 5000;
 
 function pickQuestions() {
   return [...ALL_QUESTIONS].sort(() => Math.random() - 0.5).slice(0, ROUNDS);
@@ -37,28 +40,70 @@ export default function TriviaScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const finish = useGameFinish(stake);
 
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('trivia', stake);
+
+  const [gameReady, setGameReady] = useState(false);
   const questions = useRef(pickQuestions());
   const [roundIdx, setRoundIdx] = useState(0);
   const [playerCorrect, setPlayerCorrect] = useState(0);
   const [playerScore, setPlayerScore] = useState(0);
   const [feedback, setFeedback] = useState<number | 'timeout' | null>(null);
 
-  // Timers
   const startTime = useRef(Date.now());
   const roundStartTime = useRef(Date.now());
   const [roundTimeLeft, setRoundTimeLeft] = useState(PER_QUESTION_TIME_MS);
   const [elapsedSec, setElapsedSec] = useState('0.0');
 
-  // AI parameters
   const aiCorrect = useRef(Math.floor(ROUNDS * (0.6 + Math.random() * 0.35)));
   const aiTime = useRef(ROUNDS * (2200 + Math.random() * 800));
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = questions.current[roundIdx];
+
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        startTime.current = Date.now();
+        roundStartTime.current = Date.now();
+      }, 1500);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      startTime.current = Date.now();
+      roundStartTime.current = Date.now();
+    }
+  }, [matchState.status]);
+
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: res.playerAcc,
+        aiAcc: res.aiAcc,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'accuracy',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
   const nextQuestion = useCallback(
     (isCorrect: boolean, timeSpentMs: number, optChosen: number | 'timeout') => {
@@ -73,10 +118,20 @@ export default function TriviaScreen() {
       setPlayerScore(newScore);
       setFeedback(optChosen);
 
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(roundIdx + 1, newScore, Date.now() - startTime.current);
+      }
+
       setTimeout(() => {
         setFeedback(null);
         if (roundIdx + 1 >= ROUNDS) {
           const totalTime = Date.now() - startTime.current;
+
+          if (matchState.status === 'matched' && matchState.roomId) {
+            submitFinalScore(newScore, totalTime, `${newCorrect}/${ROUNDS}`);
+            return;
+          }
+
           const won =
             newCorrect > aiCorrect.current ||
             (newCorrect === aiCorrect.current && totalTime < aiTime.current);
@@ -96,7 +151,7 @@ export default function TriviaScreen() {
         }
       }, 400);
     },
-    [roundIdx, playerCorrect, playerScore, finish]
+    [roundIdx, playerCorrect, playerScore, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]
   );
 
   const handleAnswer = useCallback(
@@ -110,8 +165,8 @@ export default function TriviaScreen() {
     [feedback, current, nextQuestion]
   );
 
-  // Per-question timer loop
   useEffect(() => {
+    if (!gameReady) return;
     const timer = setInterval(() => {
       const totalElapsed = (Date.now() - startTime.current) / 1000;
       setElapsedSec(totalElapsed.toFixed(1));
@@ -129,7 +184,7 @@ export default function TriviaScreen() {
     }, 50);
 
     return () => clearInterval(timer);
-  }, [roundIdx, feedback, nextQuestion]);
+  }, [gameReady, roundIdx, feedback, nextQuestion]);
 
   const timePct = roundTimeLeft / PER_QUESTION_TIME_MS;
   const timerBarColor = timePct > 0.5 ? '#10B981' : timePct > 0.25 ? '#EAB308' : '#EF4444';
@@ -172,15 +227,31 @@ export default function TriviaScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 99999, 0, 'ms');
           },
         },
       ]
     );
-  }, [finish]);
+  }, [finish, cancelSearch]);
 
   return (
     <View style={styles.container}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="❓ Trivia Clash"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#1E1B4B', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>
@@ -193,7 +264,6 @@ export default function TriviaScreen() {
           </View>
         </View>
 
-        {/* Question countdown bar */}
         <View style={styles.timerTrack}>
           <View style={[styles.timerFill, { width: `${Math.max(0, timePct * 100)}%`, backgroundColor: timerBarColor }]} />
         </View>

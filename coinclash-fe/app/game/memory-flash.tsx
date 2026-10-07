@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -15,27 +18,42 @@ function buildSequence(): number[] {
   return Array.from({ length: SEQ_LENGTH }, () => Math.floor(Math.random() * 6));
 }
 
-type Phase = 'intro' | 'showing' | 'input' | 'done';
+type Phase = 'searching' | 'intro' | 'showing' | 'input' | 'done';
 
 export default function MemoryFlashScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const finish = useGameFinish(stake);
 
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('memory-flash', stake);
+
+  const [gameReady, setGameReady] = useState(false);
   const sequence = useRef(buildSequence());
-  const [phase, setPhase] = useState<Phase>('intro');
+  const [phase, setPhase] = useState<Phase>('searching');
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [inputSeq, setInputSeq] = useState<number[]>([]);
 
-  // Timers
   const startTime = useRef(0);
   const [elapsedSec, setElapsedSec] = useState('0.00');
-  const aiTime = useRef(Math.round(2800 + Math.random() * 1400)); // ~2.8-4.2s for AI
+  const aiTime = useRef(Math.round(2800 + Math.random() * 1400));
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
+
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
 
   const startShowing = useCallback(() => {
     setPhase('showing');
@@ -61,13 +79,38 @@ export default function MemoryFlashScreen() {
   }, []);
 
   useEffect(() => {
-    if (phase === 'intro') {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        setPhase('intro');
+      }, 1500);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      setPhase('intro');
+    }
+  }, [matchState.status]);
+
+  useEffect(() => {
+    if (phase === 'intro' && gameReady) {
       const t = setTimeout(startShowing, 600);
       return () => clearTimeout(t);
     }
-  }, [phase, startShowing]);
+  }, [phase, gameReady, startShowing]);
 
-  // Live stopwatch tick during input phase
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: `${SEQ_LENGTH}/${SEQ_LENGTH}`,
+        aiAcc: `${SEQ_LENGTH}/${SEQ_LENGTH}`,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'time',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
+
   useEffect(() => {
     if (phase !== 'input') return;
     const timer = setInterval(() => {
@@ -86,21 +129,36 @@ export default function MemoryFlashScreen() {
 
       const pos = newInput.length - 1;
       if (newInput[pos] !== sequence.current[pos]) {
-        // Wrong tile
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setPhase('done');
+
+        if (matchState.status === 'matched' && matchState.roomId) {
+          submitFinalScore(0, 99999, `0/${SEQ_LENGTH}`);
+          return;
+        }
+
         finish(false, 9999, aiTime.current, 'ms');
         return;
       }
 
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(newInput.length, 100, Date.now() - startTime.current);
+      }
+
       if (newInput.length === SEQ_LENGTH) {
         const elapsed = Date.now() - startTime.current;
-        const won = elapsed < aiTime.current;
         setPhase('done');
+
+        if (matchState.status === 'matched' && matchState.roomId) {
+          submitFinalScore(100, elapsed, `${SEQ_LENGTH}/${SEQ_LENGTH}`);
+          return;
+        }
+
+        const won = elapsed < aiTime.current;
         setTimeout(() => finish(won, elapsed, aiTime.current, 'ms'), 300);
       }
     },
-    [phase, inputSeq, finish]
+    [phase, inputSeq, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]
   );
 
   const TILE_SIZE = 110;
@@ -136,15 +194,31 @@ export default function MemoryFlashScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 99999, 0, 'ms');
           },
         },
       ]
     );
-  }, [finish]);
+  }, [finish, cancelSearch]);
 
   return (
     <View style={styles.container}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🧠 Memory Flash"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#0F172A', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>
@@ -160,10 +234,11 @@ export default function MemoryFlashScreen() {
 
       <View style={styles.arena}>
         <Text style={styles.instruction}>
-          {phase === 'intro' && 'Get ready... Memorize the sequence!'}
-          {phase === 'showing' && 'Watch carefully...'}
-          {phase === 'input' && 'TAP THE SEQUENCE IN ORDER! FAST TIME WINS!'}
-          {phase === 'done' && 'Sequence finished!'}
+          {!gameReady && 'Searching for match...'}
+          {gameReady && phase === 'intro' && 'Get ready... Memorize the sequence!'}
+          {gameReady && phase === 'showing' && 'Watch carefully...'}
+          {gameReady && phase === 'input' && 'TAP THE SEQUENCE IN ORDER! FAST TIME WINS!'}
+          {gameReady && phase === 'done' && 'Sequence finished!'}
         </Text>
 
         <View style={styles.grid}>

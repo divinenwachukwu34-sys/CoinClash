@@ -170,6 +170,7 @@ export function useLiveMatch(gameType: string, stake: number) {
   }, [matchState.roomId]);
 
   const switchToBotMatch = useCallback(() => {
+    if (!isPractice) return; // Disallow bot fallback for real-money matches
     if (wsRef.current) {
       try {
         wsRef.current.send(JSON.stringify({ event: 'LEAVE_QUEUE' }));
@@ -184,10 +185,10 @@ export function useLiveMatch(gameType: string, stake: number) {
       opponentId: null,
       opponentProgress: 0,
       opponentScore: 0,
-      isPractice: false,
+      isPractice: true,
       gameResult: null,
     });
-  }, []);
+  }, [isPractice]);
 
   const cancelSearch = useCallback(() => {
     if (wsRef.current) {

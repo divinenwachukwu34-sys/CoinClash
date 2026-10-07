@@ -51,7 +51,7 @@ export default function ColorMatchScreen() {
   const isPractice = stake === 0;
   const finish = useGameFinish(stake);
 
-  const [gameReady, setGameReady] = useState(isPractice);
+  const [gameReady, setGameReady] = useState(false);
 
   const {
     matchState,
@@ -103,6 +103,20 @@ export default function ColorMatchScreen() {
     }
   }, [matchState.status]);
 
+  // Handle authoritative GAME_OVER from backend in live match
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: res.playerAcc,
+        aiAcc: res.aiAcc,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'accuracy',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
+
   // Advance to next round or finish
   const nextRound = useCallback(
     (isCorrect: boolean, timeSpentInRoundMs: number, isTimeout = false) => {
@@ -131,6 +145,7 @@ export default function ColorMatchScreen() {
           // If in live match, submit to server
           if (matchState.status === 'matched' && matchState.roomId) {
             submitFinalScore(newScore, totalTime, `${newCorrect}/${ROUNDS}`);
+            return;
           }
 
           const won =

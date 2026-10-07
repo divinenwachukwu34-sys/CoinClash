@@ -28,7 +28,8 @@ export function MatchmakingModal({
   onPlayBot,
 }: MatchmakingModalProps) {
   const colors = useColors();
-  const showBotOption = searchSeconds >= 8 && !isMatched;
+  const isPractice = stake === 0;
+  const showBotOption = isPractice && searchSeconds >= 8 && !isMatched;
 
   // Animations for VS Clash
   const p1Anim = useRef(new Animated.Value(-120)).current;

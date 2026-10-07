@@ -12,6 +12,18 @@ from main import app
 from services.matchmaking import MatchmakingHub, MatchRoom
 from routers.matchmaking_ws import JWT_SECRET
 
+ALL_GAMES = [
+    'color-match',
+    'math-duel',
+    'aim-rush',
+    'swipe-duel',
+    'memory-flash',
+    'word-scramble',
+    'trivia',
+    'number-catch',
+    'play'
+]
+
 def generate_test_jwt(user_id: int, username: str) -> str:
     payload = {
         "userId": user_id,
@@ -35,17 +47,17 @@ def test_matchmaking_hub_unit():
     loop = asyncio.new_event_loop()
 
     # User 1 joins queue
-    room1 = loop.run_until_complete(hub.add_player("tap_race", 100, 101, "Player_101", "avatar_1", ws1))
+    room1 = loop.run_until_complete(hub.add_player("play", 100, 101, "Player_101", "avatar_1", ws1))
     assert room1 is None, "First player should be placed in queue"
-    assert len(hub.queues["tap_race:100"]) == 1
+    assert len(hub.queues["play:real_money:100"]) == 1
 
     # User 1 attempts duplicate join (same user_id)
-    room1_dup = loop.run_until_complete(hub.add_player("tap_race", 100, 101, "Player_101", "avatar_1", ws1))
+    room1_dup = loop.run_until_complete(hub.add_player("play", 100, 101, "Player_101", "avatar_1", ws1))
     assert room1_dup is None, "Same user should not match with self"
-    assert len(hub.queues["tap_race:100"]) == 1, "Duplicate join should replace stale queue entry, keeping queue size 1"
+    assert len(hub.queues["play:real_money:100"]) == 1, "Duplicate join should replace stale queue entry"
 
     # User 2 joins queue
-    room2 = loop.run_until_complete(hub.add_player("tap_race", 100, 102, "Player_102", "avatar_2", ws2))
+    room2 = loop.run_until_complete(hub.add_player("play", 100, 102, "Player_102", "avatar_2", ws2))
     assert room2 is not None, "Distinct second user should trigger a match"
     assert 101 in room2.players and 102 in room2.players, "Room must contain both user 101 and user 102"
     assert room2.players[101]["username"] == "Player_101"
@@ -53,6 +65,54 @@ def test_matchmaking_hub_unit():
 
     loop.close()
     print("[PASS] test_matchmaking_hub_unit")
+
+def test_queue_separation_practice_vs_real_money():
+    """Verify Practice (stake 0) and Real Money (stake > 0) players NEVER cross-match."""
+    hub = MatchmakingHub()
+    ws1 = MockWebSocket()
+    ws2 = MockWebSocket()
+
+    loop = asyncio.new_event_loop()
+
+    # User 1 joins practice queue (stake 0)
+    room1 = loop.run_until_complete(hub.add_player("math-duel", 0, 301, "PracticeUser", "avatar_1", ws1))
+    assert room1 is None
+
+    # User 2 joins real money queue (stake 50) for the same game
+    room2 = loop.run_until_complete(hub.add_player("math-duel", 50, 302, "RealUser", "avatar_2", ws2))
+    assert room2 is None, "Practice player and Real Money player MUST NOT match"
+
+    assert "math-duel:practice:0" in hub.queues
+    assert "math-duel:real_money:50" in hub.queues
+
+    loop.close()
+    print("[PASS] test_queue_separation_practice_vs_real_money")
+
+def test_all_games_real_user_matchmaking():
+    """Verify live real-user matchmaking works across ALL 9 multiplayer games."""
+    client = TestClient(app)
+
+    for idx, game_id in enumerate(ALL_GAMES):
+        uid1 = 700 + idx * 2
+        uid2 = 701 + idx * 2
+        t1 = generate_test_jwt(uid1, f"User_{game_id}_1")
+        t2 = generate_test_jwt(uid2, f"User_{game_id}_2")
+
+        with client.websocket_connect(f"/api/ws/match?token={t1}&game={game_id}&stake=20") as ws1:
+            q1 = ws1.receive_json()
+            assert q1["event"] == "QUEUED"
+
+            with client.websocket_connect(f"/api/ws/match?token={t2}&game={game_id}&stake=20") as ws2:
+                m1 = ws1.receive_json()
+                m2 = ws2.receive_json()
+
+                assert m1["event"] == "MATCH_FOUND", f"Game {game_id}: P1 expected MATCH_FOUND, got {m1}"
+                assert m2["event"] == "MATCH_FOUND", f"Game {game_id}: P2 expected MATCH_FOUND, got {m2}"
+                assert m1["roomId"] == m2["roomId"], f"Game {game_id}: roomId mismatch"
+                assert m1["opponentId"] == uid2, f"Game {game_id}: opponentId mismatch"
+                assert m2["opponentId"] == uid1, f"Game {game_id}: opponentId mismatch"
+
+    print(f"[PASS] test_all_games_real_user_matchmaking (all {len(ALL_GAMES)} games verified)")
 
 def test_websocket_real_user_matchmaking():
     """Verify WebSocket endpoint handles authentication, real user matchmaking, profile exchange, and progress broadcasting."""
@@ -62,12 +122,12 @@ def test_websocket_real_user_matchmaking():
     token_b = generate_test_jwt(202, "User_Beta")
 
     # Connect User A
-    with client.websocket_connect(f"/api/ws/match?token={token_a}&game=math_duel&stake=50") as ws_a:
+    with client.websocket_connect(f"/api/ws/match?token={token_a}&game=math-duel&stake=50") as ws_a:
         msg_a1 = ws_a.receive_json()
         assert msg_a1["event"] == "QUEUED", f"Expected QUEUED, got {msg_a1}"
 
         # Connect User B
-        with client.websocket_connect(f"/api/ws/match?token={token_b}&game=math_duel&stake=50") as ws_b:
+        with client.websocket_connect(f"/api/ws/match?token={token_b}&game=math-duel&stake=50") as ws_b:
             msg_a2 = ws_a.receive_json()
             msg_b1 = ws_b.receive_json()
 
@@ -192,9 +252,9 @@ def test_duplicate_and_simultaneous_score_submissions():
     t5 = generate_test_jwt(601, "DupUser1")
     t6 = generate_test_jwt(602, "DupUser2")
 
-    with client.websocket_connect(f"/api/ws/match?token={t5}&game=math_duel&stake=20") as ws5:
+    with client.websocket_connect(f"/api/ws/match?token={t5}&game=math-duel&stake=20") as ws5:
         ws5.receive_json()
-        with client.websocket_connect(f"/api/ws/match?token={t6}&game=math_duel&stake=20") as ws6:
+        with client.websocket_connect(f"/api/ws/match?token={t6}&game=math-duel&stake=20") as ws6:
             m5 = ws5.receive_json()
             m6 = ws6.receive_json()
             room_id = m5["roomId"]
@@ -222,8 +282,10 @@ def test_duplicate_and_simultaneous_score_submissions():
 
 if __name__ == "__main__":
     test_matchmaking_hub_unit()
+    test_queue_separation_practice_vs_real_money()
+    test_all_games_real_user_matchmaking()
     test_websocket_real_user_matchmaking()
     test_tap_race_both_players_score_zero()
     test_player1_wins_and_player2_wins()
     test_duplicate_and_simultaneous_score_submissions()
-    print("ALL TAP RACE MATCHMAKING & SCORING TESTS PASSED SUCCESSFULLY!")
+    print("ALL MULTIPLAYER MATCHMAKING & SCORING TESTS PASSED SUCCESSFULLY!")

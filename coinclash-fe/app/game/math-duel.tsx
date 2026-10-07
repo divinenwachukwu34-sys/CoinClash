@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -42,9 +45,23 @@ export default function MathDuelScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
+  const isPractice = stake === 0;
   const finish = useGameFinish(stake);
+
+  const [gameReady, setGameReady] = useState(false);
+
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('math-duel', stake);
 
   const problems = useRef(Array.from({ length: ROUNDS }, buildProblem));
   const [roundIdx, setRoundIdx] = useState(0);
@@ -59,11 +76,46 @@ export default function MathDuelScreen() {
   const [elapsedSec, setElapsedSec] = useState('0.0');
 
   // AI parameters
-  const aiCorrect = useRef(Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
+  const aiCorrect = useRef(isPractice ? Math.floor(ROUNDS * (0.625 + Math.random() * 0.25)) : Math.floor(ROUNDS * (0.75 + Math.random() * 0.25)));
   const aiTime = useRef(ROUNDS * (1400 + Math.random() * 600));
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = problems.current[roundIdx];
+
+  // Start searching on mount
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  // When game begins
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        startTime.current = Date.now();
+        roundStartTime.current = Date.now();
+      }, 2000);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      startTime.current = Date.now();
+      roundStartTime.current = Date.now();
+    }
+  }, [matchState.status]);
+
+  // Handle authoritative GAME_OVER from backend in live match
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: res.playerAcc,
+        aiAcc: res.aiAcc,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'accuracy',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
   const nextProblem = useCallback(
     (isCorrect: boolean, timeSpentMs: number, optChosen: number | 'timeout') => {
@@ -78,10 +130,20 @@ export default function MathDuelScreen() {
       setPlayerScore(newScore);
       setFeedback(optChosen);
 
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(roundIdx + 1, newScore, Date.now() - startTime.current);
+      }
+
       setTimeout(() => {
         setFeedback(null);
         if (roundIdx + 1 >= ROUNDS) {
           const totalTime = Date.now() - startTime.current;
+
+          if (matchState.status === 'matched' && matchState.roomId) {
+            submitFinalScore(newScore, totalTime, `${newCorrect}/${ROUNDS}`);
+            return;
+          }
+
           const won =
             newCorrect > aiCorrect.current ||
             (newCorrect === aiCorrect.current && totalTime < aiTime.current);
@@ -101,7 +163,7 @@ export default function MathDuelScreen() {
         }
       }, 400);
     },
-    [roundIdx, playerCorrect, playerScore, finish]
+    [roundIdx, playerCorrect, playerScore, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]
   );
 
   const handleAnswer = useCallback(
@@ -187,6 +249,20 @@ export default function MathDuelScreen() {
 
   return (
     <View style={styles.container}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🧮 Math Duel"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
       <LinearGradient colors={['#0D1F2D', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>

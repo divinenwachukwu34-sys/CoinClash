@@ -41,7 +41,8 @@ class MatchmakingHub:
         self.lock = asyncio.Lock()
 
     def _queue_key(self, game_type: str, stake: int) -> str:
-        return f"{game_type}:{stake}"
+        mode = "practice" if stake == 0 else "real_money"
+        return f"{game_type}:{mode}:{stake}"
 
     async def add_player(self, game_type: str, stake: int, user_id: int, username: str, avatar: str, ws: WebSocket) -> Optional[MatchRoom]:
         key = self._queue_key(game_type, stake)

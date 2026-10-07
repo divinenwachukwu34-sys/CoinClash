@@ -1,0 +1,104 @@
+{
+  "id": "4f45c3ff-7190-4187-9c78-a63eacf8aaf0",
+  "createdAt": "2026-10-03T03:34:06.844Z",
+  "runtimeVersion": "exposdk:54.0.0",
+  "launchAsset": {
+    "key": "bundle-1790998446844-14600",
+    "contentType": "application/javascript",
+    "url": "https://13.48.56.103:8080/1790998446844-14600/_expo/static/js/android/bundle.js"
+  },
+  "assets": [],
+  "metadata": {},
+  "extra": {
+    "eas": {
+      "projectId": "2b17d6d1-ed65-412b-af84-3554452a43b0"
+    },
+    "expoClient": {
+      "name": "CoinClash",
+      "slug": "coincash",
+      "version": "1.0.0",
+      "orientation": "portrait",
+      "icon": "./assets/images/icon.png",
+      "scheme": "coincash",
+      "userInterfaceStyle": "dark",
+      "newArchEnabled": true,
+      "splash": {
+        "image": "./assets/images/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0B0B14",
+        "imageUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png"
+      },
+      "ios": {
+        "supportsTablet": false,
+        "bundleIdentifier": "com.coinclash.app"
+      },
+      "android": {
+        "backgroundColor": "#0B0B14",
+        "package": "com.coinclash.app"
+      },
+      "web": {
+        "bundler": "metro",
+        "favicon": "./assets/images/icon.png"
+      },
+      "plugins": [
+        [
+          "expo-router",
+          {
+            "origin": "https://replit.com/"
+          }
+        ],
+        "expo-font",
+        "expo-web-browser"
+      ],
+      "experiments": {
+        "typedRoutes": true,
+        "reactCompiler": true
+      },
+      "extra": {
+        "eas": {
+          "projectId": "2b17d6d1-ed65-412b-af84-3554452a43b0"
+        },
+        "router": {
+          "origin": "https://replit.com/"
+        }
+      },
+      "_internal": {
+        "isDebug": false,
+        "projectRoot": "C:\\Users\\DIVINE BOI\\Desktop\\My project\\coinclash\\coinclash-fe",
+        "dynamicConfigPath": {},
+        "staticConfigPath": "C:\\Users\\DIVINE BOI\\Desktop\\My project\\coinclash\\coinclash-fe\\app.json",
+        "packageJsonPath": "C:\\Users\\DIVINE BOI\\Desktop\\My project\\coinclash\\coinclash-fe\\package.json",
+        "pluginHistory": {
+          "expo-font": {
+            "name": "expo-font",
+            "version": "14.0.12"
+          },
+          "expo-web-browser": {
+            "name": "expo-web-browser",
+            "version": "15.0.11"
+          }
+        }
+      },
+      "sdkVersion": "54.0.0",
+      "platforms": [
+        "ios",
+        "android",
+        "web"
+      ],
+      "iconUrl": "http://127.0.0.1:8081/assets/./assets/images/icon.png",
+      "hostUri": "13.48.56.103:8080/android"
+    },
+    "expoGo": {
+      "debuggerHost": "13.48.56.103:8080/android",
+      "developer": {
+        "tool": "expo-cli",
+        "projectRoot": "C:\\Users\\DIVINE BOI\\Desktop\\My project\\coinclash\\coinclash-fe"
+      },
+      "packagerOpts": {
+        "dev": false
+      },
+      "mainModuleName": "node_modules/.pnpm/expo-router@6.0.24_71df8f5ed2d88ba5031cfdde7aaa0996/node_modules/expo-router/entry"
+    },
+    "scopeKey": "@anonymous/coincash-3a4f3c53-87da-4671-a830-32b05331450f"
+  }
+}

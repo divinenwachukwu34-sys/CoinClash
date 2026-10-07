@@ -117,7 +117,7 @@ function clearMetroCache() {
 async function checkMetroHealth() {
   try {
     const response = await fetch('http://localhost:8081/status', {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(30000),
     });
     return response.ok;
   } catch {
@@ -149,8 +149,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   }
 
   metroProcess = spawn(
-    'pnpm',
-    ['exec', 'expo', 'start', '--no-dev', '--minify', '--localhost'],
+    'cmd.exe', ['\/c', 'pnpm.cmd', 'exec', 'expo', 'start', '--no-dev', '--minify', '--localhost'],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
@@ -188,7 +187,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
 
 async function downloadFile(url, outputPath) {
   const controller = new AbortController();
-  const fiveMinMS = 5 * 60 * 1_000;
+  const fiveMinMS = 15 * 60 * 1_000;
   const timeoutId = setTimeout(() => controller.abort(), fiveMinMS);
 
   try {
@@ -587,3 +586,7 @@ main().catch((error) => {
   }
   process.exit(1);
 });
+
+
+
+

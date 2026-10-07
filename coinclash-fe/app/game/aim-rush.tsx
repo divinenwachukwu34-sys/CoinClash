@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -23,23 +26,67 @@ export default function AimRushScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const finish = useGameFinish(stake);
 
-  const [phase, setPhase] = useState<'countdown' | 'playing' | 'done'>('countdown');
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('aim-rush', stake);
+
+  const [gameReady, setGameReady] = useState(false);
+  const [phase, setPhase] = useState<'searching' | 'countdown' | 'playing' | 'done'>('searching');
   const [count, setCount] = useState(3);
   const [circles, setCircles] = useState<Circle[]>([]);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
   const [gameArea, setGameArea] = useState({ width: 340, height: 480 });
 
-  // AI score scaled for 30 seconds
-  const aiScore = useRef(Math.floor(22 + Math.random() * 10)); // 22-31 target hits for AI
+  const aiScore = useRef(Math.floor(22 + Math.random() * 10));
   const scoreRef = useRef(0);
   const startTime = useRef(0);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
+
+  // Start matchmaking on mount
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  // Handle match readiness
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        setPhase('countdown');
+      }, 1500);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      setPhase('countdown');
+    }
+  }, [matchState.status]);
+
+  // Handle authoritative GAME_OVER from backend
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'hits', {
+        playerAcc: `${scoreRef.current} hits`,
+        aiAcc: `${res.opponentScore || 0} hits`,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'accuracy',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
   const handleQuit = useCallback(() => {
     Alert.alert(
@@ -52,14 +99,15 @@ export default function AimRushScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 0, 99, 'hits');
           },
         },
       ]
     );
-  }, [finish]);
+  }, [finish, cancelSearch]);
 
-  // Initial 3-2-1 countdown
+  // Countdown timer
   useEffect(() => {
     if (phase !== 'countdown') return;
     if (count <= 0) {
@@ -77,15 +125,22 @@ export default function AimRushScreen() {
     if (timeLeft <= 0) {
       setPhase('done');
       const finalHits = scoreRef.current;
+      const totalTime = Date.now() - startTime.current;
+
+      if (matchState.status === 'matched' && matchState.roomId) {
+        submitFinalScore(finalHits, totalTime, `${finalHits} hits`);
+        return;
+      }
+
       const won = finalHits > aiScore.current;
       setTimeout(() => finish(won, finalHits, aiScore.current, 'hits'), 300);
       return;
     }
     const t = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, timeLeft, finish]);
+  }, [phase, timeLeft, finish, matchState.status, matchState.roomId, submitFinalScore]);
 
-  // Spawn randomized targets
+  // Target spawning
   useEffect(() => {
     if (phase !== 'playing') return;
     const spawn = () => {
@@ -105,7 +160,7 @@ export default function AimRushScreen() {
     };
 
     spawn();
-    const interval = setInterval(spawn, 750); // Fast spawning
+    const interval = setInterval(spawn, 750);
     return () => clearInterval(interval);
   }, [phase, gameArea]);
 
@@ -116,8 +171,12 @@ export default function AimRushScreen() {
       setCircles((prev) => prev.filter((c) => c.id !== id));
       scoreRef.current += 1;
       setScore((s) => s + 1);
+
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(scoreRef.current, scoreRef.current, Date.now() - startTime.current);
+      }
     },
-    [phase]
+    [phase, matchState.status, matchState.roomId, sendProgress]
   );
 
   const timePct = timeLeft / GAME_DURATION;
@@ -146,6 +205,21 @@ export default function AimRushScreen() {
 
   return (
     <View style={styles.container}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🎯 Aim Rush"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#1E1B4B', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>
@@ -158,7 +232,6 @@ export default function AimRushScreen() {
           </View>
         </View>
 
-        {/* 30s Countdown Bar */}
         <View style={styles.timerTrack}>
           <View style={[styles.timerFill, { width: `${Math.max(0, timePct * 100)}%`, backgroundColor: timerBarColor }]} />
         </View>

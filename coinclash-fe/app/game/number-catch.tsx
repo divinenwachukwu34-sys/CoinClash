@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -16,34 +19,74 @@ export default function NumberCatchScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const finish = useGameFinish(stake);
 
-  const [phase, setPhase] = useState<'intro' | 'playing' | 'feedback' | 'done'>('intro');
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('number-catch', stake);
+
+  const [gameReady, setGameReady] = useState(false);
+  const [phase, setPhase] = useState<'searching' | 'intro' | 'playing' | 'feedback' | 'done'>('searching');
   const [roundIdx, setRoundIdx] = useState(0);
   const [counter, setCounter] = useState(1);
   const [playerErrors, setPlayerErrors] = useState<number[]>([]);
   const [lastError, setLastError] = useState<number | null>(null);
   const counterRef = useRef(1);
 
-  // Timers
   const startTime = useRef(Date.now());
   const [elapsedSec, setElapsedSec] = useState('0.0');
-
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
-  // AI parameters (pre-computed randomized performance)
-  const aiTotalError = useRef(Math.floor(Math.random() * 2)); // 0–1 error
+  const aiTotalError = useRef(Math.floor(Math.random() * 2));
   const aiTime = useRef(ROUNDS * (1200 + Math.random() * 600));
-
-  const buildTarget = () => Math.floor(Math.random() * (MAX_NUM - 3)) + 2; // 2 to MAX_NUM-1
+  const buildTarget = () => Math.floor(Math.random() * (MAX_NUM - 3)) + 2;
 
   const [targets] = useState<number[]>(() =>
     Array.from({ length: ROUNDS }, buildTarget)
   );
 
-  // Automatic Loss if leaving mid-game
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        setPhase('playing');
+        startTime.current = Date.now();
+      }, 1500);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      setPhase('playing');
+      startTime.current = Date.now();
+    }
+  }, [matchState.status]);
+
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      const totalErr = playerErrors.reduce((a, b) => a + b, 0);
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: `${totalErr} err`,
+        aiAcc: `${aiTotalError.current} err`,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'accuracy',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady, playerErrors]);
+
   const handleQuit = useCallback(() => {
     if (phase === 'done') {
       router.back();
@@ -59,17 +102,16 @@ export default function NumberCatchScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 999, 0, 'err');
           },
         },
       ]
     );
-  }, [phase, finish, router]);
+  }, [phase, finish, cancelSearch, router]);
 
-  // Keep counterRef in sync
   useEffect(() => { counterRef.current = counter; }, [counter]);
 
-  // Tick counter during playing
   useEffect(() => {
     if (phase !== 'playing') return;
     const t = setInterval(() => {
@@ -82,9 +124,8 @@ export default function NumberCatchScreen() {
     return () => clearInterval(t);
   }, [phase]);
 
-  // Total stopwatch
   useEffect(() => {
-    if (phase === 'done') return;
+    if (phase === 'done' || phase === 'searching') return;
     const t = setInterval(() => {
       const spent = (Date.now() - startTime.current) / 1000;
       setElapsedSec(spent.toFixed(1));
@@ -103,18 +144,30 @@ export default function NumberCatchScreen() {
     const newErrors = [...playerErrors, err];
     setPlayerErrors(newErrors);
 
+    if (matchState.status === 'matched' && matchState.roomId) {
+      const totalErr = newErrors.reduce((a, b) => a + b, 0);
+      const score = Math.max(0, 100 - totalErr * 20);
+      sendProgress(roundIdx + 1, score, Date.now() - startTime.current);
+    }
+
     setTimeout(() => {
       setLastError(null);
       if (roundIdx + 1 >= ROUNDS) {
         const totalErr = newErrors.reduce((a, b) => a + b, 0);
         const totalTime = Date.now() - startTime.current;
+        const score = Math.max(0, 100 - totalErr * 20);
 
-        // Tie-breaker: lower error wins, or faster total time if errors are equal
+        setPhase('done');
+
+        if (matchState.status === 'matched' && matchState.roomId) {
+          submitFinalScore(score, totalTime, `${totalErr} err`);
+          return;
+        }
+
         const won =
           totalErr < aiTotalError.current ||
           (totalErr === aiTotalError.current && totalTime < aiTime.current);
 
-        setPhase('done');
         const tieBreaker = totalErr !== aiTotalError.current ? 'accuracy' : 'time';
         finish(won, totalTime, aiTime.current, 'ms', {
           playerAcc: `${totalErr} err`,
@@ -130,12 +183,7 @@ export default function NumberCatchScreen() {
         setPhase('playing');
       }
     }, 800);
-  }, [phase, roundIdx, targets, playerErrors, finish]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setPhase('playing'), 600);
-    return () => clearTimeout(timer);
-  }, []);
+  }, [phase, roundIdx, targets, playerErrors, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]);
 
   const currentTarget = targets[roundIdx];
 
@@ -171,6 +219,21 @@ export default function NumberCatchScreen() {
 
   return (
     <View style={styles.container}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🔢 Number Catch"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#0F291E', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>

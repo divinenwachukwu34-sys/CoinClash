@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -11,8 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const DIRECTIONS = ['up', 'down', 'left', 'right'] as const;
 type Direction = (typeof DIRECTIONS)[number];
 
-const SWIPES = 16; // Over 15 fast swipes!
-const PER_SWIPE_TIME_MS = 2500; // 2.5 seconds per swipe
+const SWIPES = 16;
+const PER_SWIPE_TIME_MS = 2500;
 
 const ICON_MAP: Record<Direction, keyof typeof Ionicons.glyphMap> = {
   up: 'arrow-up',
@@ -29,28 +32,73 @@ export default function SwipeDuelScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const finish = useGameFinish(stake);
 
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('swipe-duel', stake);
+
+  const [gameReady, setGameReady] = useState(false);
   const sequence = useRef(buildSequence());
   const [swipeIdx, setSwipeIdx] = useState(0);
   const [phase, setPhase] = useState<'intro' | 'playing' | 'done'>('intro');
   const [lastResult, setLastResult] = useState<'correct' | 'wrong' | 'timeout' | null>(null);
 
-  // Timers
   const startTime = useRef(0);
   const swipeStartTime = useRef(0);
   const [swipeTimeLeft, setSwipeTimeLeft] = useState(PER_SWIPE_TIME_MS);
   const [elapsedSec, setElapsedSec] = useState('0.00');
 
-  const aiTime = useRef(Math.round(4200 + Math.random() * 2500)); // ~4.2-6.7s total for AI
+  const aiTime = useRef(Math.round(4200 + Math.random() * 2500));
   const swipeIdxRef = useRef(0);
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   useEffect(() => {
     swipeIdxRef.current = swipeIdx;
   }, [swipeIdx]);
+
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        setPhase('playing');
+        startTime.current = Date.now();
+        swipeStartTime.current = Date.now();
+      }, 1500);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      setPhase('playing');
+      startTime.current = Date.now();
+      swipeStartTime.current = Date.now();
+    }
+  }, [matchState.status]);
+
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: `${SWIPES}/${SWIPES}`,
+        aiAcc: `${SWIPES}/${SWIPES}`,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'time',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
   const handleQuit = useCallback(() => {
     Alert.alert(
@@ -63,25 +111,14 @@ export default function SwipeDuelScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 99999, 0, 'ms');
           },
         },
       ]
     );
-  }, [finish]);
+  }, [finish, cancelSearch]);
 
-  useEffect(() => {
-    if (phase === 'intro') {
-      const t = setTimeout(() => {
-        setPhase('playing');
-        startTime.current = Date.now();
-        swipeStartTime.current = Date.now();
-      }, 600);
-      return () => clearTimeout(t);
-    }
-  }, [phase]);
-
-  // Live stopwatch and per-swipe timer tick
   useEffect(() => {
     if (phase !== 'playing') return;
     const timer = setInterval(() => {
@@ -95,7 +132,6 @@ export default function SwipeDuelScreen() {
       setSwipeTimeLeft(left);
 
       if (left <= 0) {
-        // Swipe timed out -> wrong swipe!
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setLastResult('timeout');
         setTimeout(() => {
@@ -116,14 +152,24 @@ export default function SwipeDuelScreen() {
       Haptics.impactAsync(isCorrect ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy);
       setLastResult(isCorrect ? 'correct' : 'wrong');
 
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(swipeIdxRef.current + (isCorrect ? 1 : 0), 100, Date.now() - startTime.current);
+      }
+
       setTimeout(() => {
         setLastResult(null);
         if (isCorrect) {
           const next = swipeIdxRef.current + 1;
           if (next >= SWIPES) {
             const elapsed = Date.now() - startTime.current;
-            const won = elapsed < aiTime.current;
             setPhase('done');
+
+            if (matchState.status === 'matched' && matchState.roomId) {
+              submitFinalScore(SWIPES, elapsed, `${SWIPES}/${SWIPES}`);
+              return;
+            }
+
+            const won = elapsed < aiTime.current;
             finish(won, elapsed, aiTime.current, 'ms');
           } else {
             setSwipeIdx(next);
@@ -133,7 +179,7 @@ export default function SwipeDuelScreen() {
         }
       }, 150);
     },
-    [phase, lastResult, finish]
+    [phase, lastResult, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]
   );
 
   const panResponder = useRef(
@@ -188,6 +234,21 @@ export default function SwipeDuelScreen() {
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="↔️ Swipe Duel"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#1E1B4B', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>
@@ -200,7 +261,6 @@ export default function SwipeDuelScreen() {
           </View>
         </View>
 
-        {/* Per-swipe countdown bar */}
         <View style={styles.timerTrack}>
           <View style={[styles.timerFill, { width: `${Math.max(0, timePct * 100)}%`, backgroundColor: timerBarColor }]} />
         </View>
@@ -222,7 +282,7 @@ export default function SwipeDuelScreen() {
 
       <View style={styles.arena}>
         <Text style={styles.instruction}>
-          {phase === 'intro' ? 'Get ready to swipe!' : 'SWIPE OR TAP IN THE ARROW DIRECTION!'}
+          {!gameReady ? 'Get ready to swipe!' : 'SWIPE OR TAP IN THE ARROW DIRECTION!'}
         </Text>
 
         <View
@@ -253,7 +313,6 @@ export default function SwipeDuelScreen() {
           )}
         </View>
 
-        {/* Direction button controls for touch & web */}
         <View style={styles.controlsGrid}>
           <Pressable style={styles.dirBtn} onPress={() => handleSwipe('up')}>
             <Ionicons name="arrow-up" size={24} color={colors.foreground} />

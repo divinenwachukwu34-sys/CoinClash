@@ -1,5 +1,8 @@
+import { useAuth } from '@/context/AuthContext';
 import { useGameFinish } from '@/hooks/useGameFinish';
 import { useColors } from '@/hooks/useColors';
+import { useLiveMatch } from '@/hooks/useLiveMatch';
+import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -17,7 +20,7 @@ const WORD_BANK = [
 ];
 
 const ROUNDS = 8;
-const PER_WORD_TIME_MS = 4500; // 4.5 seconds per word
+const PER_WORD_TIME_MS = 4500;
 
 function scramble(word: string): string {
   const arr = word.split('');
@@ -49,10 +52,22 @@ export default function WordScrambleScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const finish = useGameFinish(stake);
 
+  const {
+    matchState,
+    searchSeconds,
+    startSearching,
+    sendProgress,
+    submitFinalScore,
+    switchToBotMatch,
+    cancelSearch,
+  } = useLiveMatch('word-scramble', stake);
+
+  const [gameReady, setGameReady] = useState(false);
   const usedIdx = useRef<number[]>([]);
   const [rounds] = useState(() => {
     const rs = [];
@@ -69,7 +84,6 @@ export default function WordScrambleScreen() {
   const [playerScore, setPlayerScore] = useState(0);
   const [feedback, setFeedback] = useState<string | 'timeout' | null>(null);
 
-  // Timers
   const startTime = useRef(Date.now());
   const roundStartTime = useRef(Date.now());
   const [roundTimeLeft, setRoundTimeLeft] = useState(PER_WORD_TIME_MS);
@@ -80,6 +94,38 @@ export default function WordScrambleScreen() {
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const current = rounds[roundIdx];
+
+  useEffect(() => {
+    startSearching();
+  }, [startSearching]);
+
+  useEffect(() => {
+    if (matchState.status === 'matched') {
+      const t = setTimeout(() => {
+        setGameReady(true);
+        startTime.current = Date.now();
+        roundStartTime.current = Date.now();
+      }, 1500);
+      return () => clearTimeout(t);
+    } else if (matchState.status === 'offline_ai') {
+      setGameReady(true);
+      startTime.current = Date.now();
+      roundStartTime.current = Date.now();
+    }
+  }, [matchState.status]);
+
+  useEffect(() => {
+    if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
+      const res = matchState.gameResult;
+      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'ms', {
+        playerAcc: res.playerAcc,
+        aiAcc: res.aiAcc,
+        playerTimeMs: res.playerTimeMs,
+        aiTimeMs: res.opponentTimeMs,
+        tieBreaker: 'accuracy',
+      });
+    }
+  }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
   const handleQuit = useCallback(() => {
     Alert.alert(
@@ -92,12 +138,13 @@ export default function WordScrambleScreen() {
           style: 'destructive',
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            cancelSearch();
             finish(false, 99999, 0, 'ms');
           },
         },
       ]
     );
-  }, [finish]);
+  }, [finish, cancelSearch]);
 
   const nextWord = useCallback(
     (isCorrect: boolean, timeSpentMs: number, optChosen: string | 'timeout') => {
@@ -112,10 +159,20 @@ export default function WordScrambleScreen() {
       setPlayerScore(newScore);
       setFeedback(optChosen);
 
+      if (matchState.status === 'matched' && matchState.roomId) {
+        sendProgress(roundIdx + 1, newScore, Date.now() - startTime.current);
+      }
+
       setTimeout(() => {
         setFeedback(null);
         if (roundIdx + 1 >= ROUNDS) {
           const totalTime = Date.now() - startTime.current;
+
+          if (matchState.status === 'matched' && matchState.roomId) {
+            submitFinalScore(newScore, totalTime, `${newCorrect}/${ROUNDS}`);
+            return;
+          }
+
           const won =
             newCorrect > aiCorrect.current ||
             (newCorrect === aiCorrect.current && totalTime < aiTime.current);
@@ -135,7 +192,7 @@ export default function WordScrambleScreen() {
         }
       }, 400);
     },
-    [roundIdx, playerCorrect, playerScore, finish]
+    [roundIdx, playerCorrect, playerScore, finish, matchState.status, matchState.roomId, sendProgress, submitFinalScore]
   );
 
   const handleAnswer = useCallback(
@@ -149,8 +206,8 @@ export default function WordScrambleScreen() {
     [feedback, current, nextWord]
   );
 
-  // Per-word timer loop
   useEffect(() => {
+    if (!gameReady) return;
     const timer = setInterval(() => {
       const totalElapsed = (Date.now() - startTime.current) / 1000;
       setElapsedSec(totalElapsed.toFixed(1));
@@ -168,7 +225,7 @@ export default function WordScrambleScreen() {
     }, 50);
 
     return () => clearInterval(timer);
-  }, [roundIdx, feedback, nextWord]);
+  }, [gameReady, roundIdx, feedback, nextWord]);
 
   const timePct = roundTimeLeft / PER_WORD_TIME_MS;
   const timerBarColor = timePct > 0.5 ? '#10B981' : timePct > 0.25 ? '#EAB308' : '#EF4444';
@@ -204,6 +261,21 @@ export default function WordScrambleScreen() {
 
   return (
     <View style={styles.container}>
+      <MatchmakingModal
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🔤 Word Scramble"
+        stake={stake}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
+        onCancel={() => {
+          cancelSearch();
+          router.back();
+        }}
+        onPlayBot={switchToBotMatch}
+      />
+
       <LinearGradient colors={['#1E293B', colors.background]} style={styles.header}>
         <View style={styles.topBar}>
           <Pressable style={styles.backBtn} onPress={handleQuit}>
@@ -216,7 +288,6 @@ export default function WordScrambleScreen() {
           </View>
         </View>
 
-        {/* Word countdown bar */}
         <View style={styles.timerTrack}>
           <View style={[styles.timerFill, { width: `${Math.max(0, timePct * 100)}%`, backgroundColor: timerBarColor }]} />
         </View>
