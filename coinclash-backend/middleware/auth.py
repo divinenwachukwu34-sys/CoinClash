@@ -41,6 +41,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             if not valid_session:
                 raise HTTPException(status_code=401, detail="Session has been revoked. Please log in again.")
 
+        is_admin = bool(user.get("is_admin", False) or user.get("isAdmin", False) or user.get("role") in ["admin", "owner"])
         return {
             "userId": user["id"],
             "email": user["email"],
@@ -48,7 +49,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             "is_verified": user.get("is_verified", False),
             "status": user.get("status", "active"),
             "tokenVersion": token_version,
-            "sessionId": session_token
+            "sessionId": session_token,
+            "role": user.get("role", "user"),
+            "isAdmin": is_admin,
+            "is_admin": is_admin
         }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired. Please log in again.")

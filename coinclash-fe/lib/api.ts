@@ -252,6 +252,8 @@ export interface User {
   isVerified?: boolean;
   status?: string;
   isFlagged?: boolean;
+  role?: string;
+  isAdmin?: boolean;
   referralCode?: string;
   reservedBankName?: string;
   reservedAccountNumber?: string;

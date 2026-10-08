@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
     coin_balance INTEGER DEFAULT 0,
     referral_code VARCHAR(20) UNIQUE,
     is_verified BOOLEAN DEFAULT FALSE,
+    role VARCHAR(30) DEFAULT 'user', -- 'user', 'admin', 'owner'
+    is_admin BOOLEAN DEFAULT FALSE,
     status VARCHAR(30) DEFAULT 'active', -- 'active', 'suspended', 'banned'
     is_flagged BOOLEAN DEFAULT FALSE,
     flag_reason TEXT,
@@ -29,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- ── OTP Verifications Table ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS otp_verifications (

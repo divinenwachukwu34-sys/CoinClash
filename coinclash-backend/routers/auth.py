@@ -72,6 +72,8 @@ def format_user_dict(user: dict) -> dict:
         "isVerified": user.get("is_verified", False),
         "status": user.get("status", "active"),
         "isFlagged": user.get("is_flagged", False),
+        "role": user.get("role", "user"),
+        "isAdmin": bool(user.get("is_admin", False) or user.get("isAdmin", False) or user.get("role") in ["admin", "owner"]),
         "referralCode": user.get("referral_code"),
         "reservedBankName": user.get("reserved_bank_name"),
         "reservedAccountNumber": user.get("reserved_account_number"),

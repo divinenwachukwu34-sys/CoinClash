@@ -507,7 +507,7 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
           </Pressable>
 
-          {user?.email === 'admin@coinclash.com' && (
+          {Boolean(user?.isAdmin || user?.role === 'admin') && (
             <Pressable style={s.settingsItem} onPress={() => router.push('/admin')}>
               <Ionicons name="shield-outline" size={18} color={colors.primary} />
               <Text style={[s.settingsText, { color: colors.primary }]}>Admin Panel</Text>

@@ -4,10 +4,20 @@ from middleware.auth import get_current_user
 
 router = APIRouter()
 
-ADMIN_EMAIL = "divinenwachukwu34@gmail.com"
+import os
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
 
 def require_admin(user: dict = Depends(get_current_user)):
-    if user.get("email") != ADMIN_EMAIL:
+    """
+    Enforce explicit admin/owner role-based authorization.
+    Normal players (regardless of email) are strictly denied.
+    """
+    is_admin = bool(
+        user.get("isAdmin")
+        or user.get("is_admin")
+        or user.get("role") in ["admin", "owner"]
+    )
+    if not is_admin:
         raise HTTPException(status_code=403, detail="Forbidden")
     return user
 

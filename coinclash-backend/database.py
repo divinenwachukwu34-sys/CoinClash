@@ -38,6 +38,9 @@ async def init_db():
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reserved_account_name VARCHAR(255)")
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_claim_at TIMESTAMP WITH TIME ZONE")
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_streak INTEGER DEFAULT 0")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'user'")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
             
             # Ensure unique constraints on phone, username, email if not exists
             await conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_uniq ON users(LOWER(username))")
@@ -61,13 +64,17 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
         # in production even if the pool is somehow unavailable at startup.
         import os
         if os.getenv("TESTING") == "1":
-            from routers.admin import ADMIN_EMAIL
-            email = ADMIN_EMAIL if user_id == 9999 else f"user{user_id}@test.com"
+            is_adm = (user_id == 9999)
+            role = "admin" if is_adm else "user"
+            email = "admin@coinclash.internal" if is_adm else f"user{user_id}@test.com"
             return {
                 "id": user_id,
                 "email": email,
-                "username": f"User_{user_id}",
+                "username": "AdminUser" if is_adm else f"User_{user_id}",
                 "status": "active",
+                "role": role,
+                "is_admin": is_adm,
+                "isAdmin": is_adm,
                 "token_version": 1,
                 "is_verified": True,
                 "balance": 0,

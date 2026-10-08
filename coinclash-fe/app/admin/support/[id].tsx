@@ -45,7 +45,7 @@ export default function AdminTicketDetailScreen() {
 
   // Admin Guard
   useEffect(() => {
-    if (user && user.email !== ADMIN_EMAIL) {
+    if (user && !user.isAdmin && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
   }, [user]);

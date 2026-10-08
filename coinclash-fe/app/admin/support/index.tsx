@@ -36,9 +36,9 @@ export default function AdminSupportDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Admin Guard
+// Admin Guard
   useEffect(() => {
-    if (user && user.email !== ADMIN_EMAIL) {
+    if (user && !user.isAdmin && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
   }, [user]);

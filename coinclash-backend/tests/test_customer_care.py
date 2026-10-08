@@ -52,13 +52,15 @@ def generate_test_jwt(user_id: int, email: str, username: str) -> str:
 def test_customer_care_full_lifecycle():
     client = TestClient(app)
 
-    # Generate JWTs for two regular users and one admin user
+    # Generate JWTs for regular users, the personal player account, and dedicated admin user
     u1_jwt = generate_test_jwt(9101, "user1@test.com", "SupportUser1")
     u2_jwt = generate_test_jwt(9102, "user2@test.com", "SupportUser2")
-    admin_jwt = generate_test_jwt(9999, ADMIN_EMAIL, "AdminUser")
+    u_personal_jwt = generate_test_jwt(9103, "divinenwachukwu34@gmail.com", "DivinePlayer")
+    admin_jwt = generate_test_jwt(9999, "admin@coinclash.internal", "AdminUser")
 
     headers1 = {"Authorization": f"Bearer {u1_jwt}"}
     headers2 = {"Authorization": f"Bearer {u2_jwt}"}
+    headers_personal = {"Authorization": f"Bearer {u_personal_jwt}"}
     headers_admin = {"Authorization": f"Bearer {admin_jwt}"}
 
     # ── 1. FAQ Search & Filter ───────────────────────────────────────────────
@@ -128,7 +130,15 @@ def test_customer_care_full_lifecycle():
     # ── 5. Security: Unprivileged User Admin Endpoint Access Denied ─────────
     r_admin_forbidden = client.get("/api/admin/support/tickets", headers=headers1)
     assert r_admin_forbidden.status_code == 403, "Non-admin must be denied access to admin endpoints"
-    print("[PASS] 5. Security: Non-Admin Access Denied (403)")
+
+    # Personal Gmail player account must NOT have admin access (must receive 403 Forbidden)
+    r_personal_forbidden = client.get("/api/admin/support/tickets", headers=headers_personal)
+    assert r_personal_forbidden.status_code == 403, "Personal player account must NOT be granted admin access"
+
+    r_personal_faqs_forbidden = client.get("/api/admin/support/faqs", headers=headers_personal)
+    assert r_personal_faqs_forbidden.status_code == 403, "Personal player account must be denied admin FAQ access"
+
+    print("[PASS] 5. Security: Non-Admin Access Denied (403) for all regular accounts including personal player account")
 
     # ── 6. Attachment Validation Security Test ────────────────────────────────
     # Invalid MIME prefix should be rejected
