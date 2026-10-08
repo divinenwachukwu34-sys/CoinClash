@@ -26,6 +26,12 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# MUST be set before any module that imports database.py is loaded.
+# This activates the strictly test-only synthetic-user fallback in
+# get_user_by_id() so HTTP endpoints can authenticate without a live DB.
+# This variable is never set in production or staging environments.
+os.environ["TESTING"] = "1"
+
 from fastapi.testclient import TestClient
 from main import app
 from routers.matchmaking_ws import JWT_SECRET

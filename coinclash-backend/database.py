@@ -56,20 +56,28 @@ async def close_db():
 
 async def get_user_by_id(user_id: int) -> Optional[dict]:
     if not pool:
-        # In test environments (no DB), return a synthetic user so auth middleware passes.
-        # The admin test JWT encodes user_id=9999 with email="admin@coinclash.com",
-        # so require_admin will correctly match for that user_id.
-        from routers.admin import ADMIN_EMAIL
-        email = ADMIN_EMAIL if user_id == 9999 else f"user{user_id}@test.com"
-        return {
-            "id": user_id,
-            "email": email,
-            "username": f"User_{user_id}",
-            "status": "active",
-            "token_version": 1,
-            "is_verified": True,
-            "balance": 0,
-        }
+        # Synthetic fallback is STRICTLY test-only.
+        # Gated behind TESTING=1 environment variable so it is never reachable
+        # in production even if the pool is somehow unavailable at startup.
+        import os
+        if os.getenv("TESTING") == "1":
+            from routers.admin import ADMIN_EMAIL
+            email = ADMIN_EMAIL if user_id == 9999 else f"user{user_id}@test.com"
+            return {
+                "id": user_id,
+                "email": email,
+                "username": f"User_{user_id}",
+                "status": "active",
+                "token_version": 1,
+                "is_verified": True,
+                "balance": 0,
+            }
+        # Production / staging: pool must always be initialised before requests arrive.
+        # If it is not, fail closed rather than returning a synthetic user.
+        raise RuntimeError(
+            "Database pool is unavailable. Cannot authenticate user. "
+            "Ensure the database is connected before handling requests."
+        )
     async with pool.acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM users WHERE id = $1', user_id)
         return dict(row) if row else None

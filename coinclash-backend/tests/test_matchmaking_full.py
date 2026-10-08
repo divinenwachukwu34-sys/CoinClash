@@ -26,6 +26,10 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Activates the test-only synthetic-user fallback in get_user_by_id().
+# Never set in production or staging environments.
+os.environ["TESTING"] = "1"
+
 from fastapi.testclient import TestClient
 from main import app
 from services.matchmaking import MatchmakingHub, MatchRoom, MATCH_DISPLAY_SECONDS
