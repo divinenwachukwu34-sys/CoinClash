@@ -26,7 +26,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type Phase = 'searching' | 'countdown' | 'early' | 'ready' | 'done';
+type Phase = 'searching' | 'opponent_display' | 'countdown' | 'early' | 'ready' | 'done';
+
+// Must match server-side MATCH_DISPLAY_SECONDS = 4
+const DISPLAY_PHASE_MS = 4000;
 
 export default function PlayScreen() {
   const colors = useColors();
@@ -56,9 +59,11 @@ export default function PlayScreen() {
 
   const phaseRef = useRef<Phase>('searching');
   const hasFinished = useRef(false);
+  const hasSentStart = useRef(false);
   const readyTimeRef = useRef(0);
   const opponentTimeRef = useRef(0);
   const opponentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tapScale = useSharedValue(1);
   const bgBrightness = useSharedValue(0);
@@ -67,24 +72,56 @@ export default function PlayScreen() {
     phaseRef.current = phase;
   }, [phase]);
 
-  // Start matchmaking or offline practice on mount
+  // Start matchmaking on mount
   useEffect(() => {
     startSearching();
   }, [startSearching]);
 
-  // Send GAME_START to server when matched
+  // ── When matched: show opponent for 4 seconds, then send GAME_START ────────
   useEffect(() => {
-    if (matchState.status === 'matched') {
-      sendGameStart();
-      setPhase('countdown');
+    if (matchState.status === 'matched' && !hasSentStart.current) {
+      hasSentStart.current = true;
+      setPhase('opponent_display');
+
+      // After the 4-second display phase, inform the server we are ready
+      displayTimerRef.current = setTimeout(() => {
+        sendGameStart();
+      }, DISPLAY_PHASE_MS);
+
+      return () => {
+        if (displayTimerRef.current) clearTimeout(displayTimerRef.current);
+      };
     }
   }, [matchState.status, sendGameStart]);
 
-  // Handle authoritative GAME_OVER event from backend in live match
+  // ── When bot/offline_ai: also show opponent briefly then start ─────────────
+  useEffect(() => {
+    if (matchState.status === 'offline_ai') {
+      setPhase('opponent_display');
+      displayTimerRef.current = setTimeout(() => {
+        setPhase('countdown');
+        setCount(3);
+      }, DISPLAY_PHASE_MS);
+      return () => {
+        if (displayTimerRef.current) clearTimeout(displayTimerRef.current);
+      };
+    }
+  }, [matchState.status]);
+
+  // ── When GAME_BEGIN arrives from backend → start countdown ─────────────────
+  useEffect(() => {
+    if (matchState.status === 'playing') {
+      setPhase('countdown');
+      setCount(3);
+    }
+  }, [matchState.status]);
+
+  // ── Authoritative GAME_OVER from backend ───────────────────────────────────
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && !hasFinished.current) {
       hasFinished.current = true;
       if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
+      setPhase('done');
 
       const res = matchState.gameResult;
       const won = res.won;
@@ -93,6 +130,7 @@ export default function PlayScreen() {
       const playerTime = res.playerTimeMs;
       const opponentTime = res.opponentTimeMs;
 
+      // Update local wallet display (server already did the authoritative DB write)
       if (stake > 0 && !isDraw) {
         if (won) {
           addCoins(prize);
@@ -133,43 +171,35 @@ export default function PlayScreen() {
           aiAcc: res.aiAcc,
           playerTimeMs: String(playerTime),
           aiTimeMs: String(opponentTime),
+          // Canonical fields for score sheet
+          player1Id: String(res.player1Id),
+          player2Id: String(res.player2Id),
+          player1Score: String(res.player1Score),
+          player2Score: String(res.player2Score),
+          winnerId: res.winnerId != null ? String(res.winnerId) : '',
         },
       });
     }
-  }, [matchState.status, matchState.gameResult, matchState.opponentUsername, stake, addCoins, addTransaction, addGameResult, router]);
+  }, [
+    matchState.status, matchState.gameResult, matchState.opponentUsername,
+    stake, addCoins, addTransaction, addGameResult, router,
+  ]);
 
-  const finishGame = useCallback(
+  // ── Offline bot finish ─────────────────────────────────────────────────────
+  const finishGameOffline = useCallback(
     (playerTime: number, opponentTime: number, won: boolean) => {
       if (hasFinished.current) return;
-
-      // In real live match, submit score to websocket and wait for authoritative GAME_OVER
-      if (matchState.status === 'matched' && matchState.roomId) {
-        const score = won ? 100 : (playerTime > 0 ? 50 : 0);
-        submitFinalScore(score, playerTime, score > 0 ? '1/1' : '0/1');
-        setPhase('done');
-        return;
-      }
-
-      // Offline practice bot mode
       hasFinished.current = true;
+
       const prize = won ? (stake > 0 ? stake * 2 - 5 : 0) : 0;
       if (stake > 0) {
         if (won) {
           addCoins(prize);
-          addTransaction({
-            type: 'win',
-            amount: prize,
-            description: `Won ${stake}-coin match against Bot Player`,
-          });
+          addTransaction({ type: 'win', amount: prize, description: `Won ${stake}-coin match against Bot Player` });
         } else {
-          addTransaction({
-            type: 'loss',
-            amount: stake,
-            description: `Lost ${stake}-coin match against Bot Player`,
-          });
+          addTransaction({ type: 'loss', amount: stake, description: `Lost ${stake}-coin match against Bot Player` });
         }
       }
-
       addGameResult({ stake, won, playerTime, opponentTime, prize });
 
       router.replace({
@@ -184,22 +214,26 @@ export default function PlayScreen() {
         },
       });
     },
-    [stake, addCoins, addTransaction, addGameResult, router, matchState.status, matchState.roomId, submitFinalScore]
+    [stake, addCoins, addTransaction, addGameResult, router]
   );
 
   const handleTap = useCallback(() => {
     const currentPhase = phaseRef.current;
 
-    if (currentPhase === 'searching' || currentPhase === 'done') return;
+    if (currentPhase === 'searching' || currentPhase === 'opponent_display' || currentPhase === 'done') return;
 
     if (currentPhase === 'countdown') {
       // Too early!
       if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
       setPhase('early');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const oppTime = 350;
-      opponentTimeRef.current = oppTime;
-      finishGame(0, oppTime, false);
+
+      const isLiveMatch = matchState.status === 'playing';
+      if (isLiveMatch) {
+        submitFinalScore(0, 0, '0/1');
+      } else {
+        finishGameOffline(0, 350, false);
+      }
       return;
     }
 
@@ -215,18 +249,22 @@ export default function PlayScreen() {
     tapScale.value = withSequence(withSpring(0.9, { damping: 8 }), withSpring(1));
     Haptics.impactAsync(won ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
 
-    sendProgress(100, 100, playerTime);
-    finishGame(playerTime, opponentTime, won);
-  }, [finishGame, tapScale, sendProgress]);
+    const isLiveMatch = matchState.status === 'playing';
+    if (isLiveMatch) {
+      sendProgress(100, 100, playerTime);
+      submitFinalScore(100, playerTime, '1/1');
+    } else {
+      finishGameOffline(playerTime, opponentTime, won);
+    }
+  }, [finishGameOffline, tapScale, sendProgress, submitFinalScore, matchState.status]);
 
-  // Countdown ticking & ready timer
+  // ── Countdown logic ────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== 'countdown') return;
 
     if (count <= 0) {
-      // Transition to ready
       const t = setTimeout(() => {
-        const isLiveMatch = matchState.status === 'matched';
+        const isLiveMatch = matchState.status === 'playing';
         const oppMs = isPractice
           ? Math.round(420 + Math.random() * 180)
           : Math.round(320 + Math.random() * 250);
@@ -238,7 +276,7 @@ export default function PlayScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         if (isLiveMatch) {
-          // Live match timeout: if player does not tap within 3.5s, submit score 0 / 3500ms
+          // Timeout: if player does not tap within 3.5s, submit score 0
           opponentTimerRef.current = setTimeout(() => {
             if (!hasFinished.current && phaseRef.current === 'ready') {
               setPhase('done');
@@ -251,7 +289,7 @@ export default function PlayScreen() {
             if (!hasFinished.current && phaseRef.current === 'ready') {
               const playerTime = Date.now() - readyTimeRef.current;
               setPhase('done');
-              finishGame(playerTime, oppMs, false);
+              finishGameOffline(playerTime, oppMs, false);
             }
           }, oppMs);
         }
@@ -262,11 +300,12 @@ export default function PlayScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const t = setTimeout(() => setCount((c) => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, count, finishGame, bgBrightness, isPractice, matchState.status, submitFinalScore]);
+  }, [phase, count, finishGameOffline, bgBrightness, isPractice, matchState.status, submitFinalScore]);
 
   useEffect(() => {
     return () => {
       if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
+      if (displayTimerRef.current) clearTimeout(displayTimerRef.current);
     };
   }, []);
 
@@ -294,145 +333,105 @@ export default function PlayScreen() {
       alignItems: 'center',
     },
     backBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 36, height: 36, borderRadius: 18,
       backgroundColor: colors.card,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: 'center', justifyContent: 'center',
     },
     stakeTag: {
       marginLeft: 'auto',
       backgroundColor: colors.card,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderRadius: 20, borderWidth: 1, borderColor: colors.border,
+      flexDirection: 'row', alignItems: 'center', gap: 6,
     },
     stakeText: {
-      fontSize: 13,
-      fontWeight: '600' as const,
-      color: colors.foreground,
-      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13, fontWeight: '600' as const,
+      color: colors.foreground, fontFamily: 'Inter_600SemiBold',
     },
     opponentBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      backgroundColor: colors.card,
-      paddingVertical: 6,
-      paddingHorizontal: 14,
-      borderRadius: 16,
-      marginHorizontal: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 6, backgroundColor: colors.card,
+      paddingVertical: 6, paddingHorizontal: 14,
+      borderRadius: 16, marginHorizontal: 20,
+      borderWidth: 1, borderColor: colors.border,
     },
     opponentBannerText: {
-      fontSize: 12,
-      color: colors.foreground,
-      fontFamily: 'Inter_600SemiBold',
+      fontSize: 12, color: colors.foreground, fontFamily: 'Inter_600SemiBold',
     },
     gameArea: {
-      flex: 1,
-      paddingHorizontal: 20,
-      paddingBottom: bottomPad + 20,
-      justifyContent: 'space-between',
+      flex: 1, paddingHorizontal: 20,
+      paddingBottom: bottomPad + 20, justifyContent: 'space-between',
     },
-    instructionArea: {
-      alignItems: 'center',
-      paddingVertical: 20,
-    },
+    instructionArea: { alignItems: 'center', paddingVertical: 20 },
     instructionTitle: {
-      fontSize: 24,
-      fontWeight: '700' as const,
-      fontFamily: 'Inter_700Bold',
-      textAlign: 'center',
+      fontSize: 24, fontWeight: '700' as const,
+      fontFamily: 'Inter_700Bold', textAlign: 'center',
     },
     instructionSub: {
-      fontSize: 14,
-      color: colors.mutedForeground,
-      fontFamily: 'Inter_400Regular',
-      marginTop: 6,
-      textAlign: 'center',
+      fontSize: 14, color: colors.mutedForeground,
+      fontFamily: 'Inter_400Regular', marginTop: 6, textAlign: 'center',
     },
-    tapTarget: {
-      flex: 1,
-      maxHeight: 380,
-      borderRadius: 28,
-      overflow: 'hidden',
-    },
-    tapGradient: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 24,
-    },
+    tapTarget: { flex: 1, maxHeight: 380, borderRadius: 28, overflow: 'hidden' },
+    tapGradient: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     countdownCircle: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
+      width: 100, height: 100, borderRadius: 50,
       backgroundColor: colors.primary + '20',
-      borderWidth: 2,
-      borderColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderWidth: 2, borderColor: colors.primary,
+      alignItems: 'center', justifyContent: 'center',
     },
     countdownNum: {
-      fontSize: 48,
-      fontWeight: '700' as const,
-      color: colors.foreground,
-      fontFamily: 'Inter_700Bold',
+      fontSize: 48, fontWeight: '700' as const,
+      color: colors.foreground, fontFamily: 'Inter_700Bold',
     },
-    tapPrompt: {
-      alignItems: 'center',
-      gap: 8,
-    },
+    tapPrompt: { alignItems: 'center', gap: 8 },
     tapPromptText: {
-      fontSize: 32,
-      fontWeight: '700' as const,
-      color: '#FFFFFF',
-      fontFamily: 'Inter_700Bold',
-      letterSpacing: 2,
+      fontSize: 32, fontWeight: '700' as const,
+      color: '#FFFFFF', fontFamily: 'Inter_700Bold', letterSpacing: 2,
     },
     earlyText: {
-      fontSize: 22,
-      fontWeight: '700' as const,
-      color: '#FFFFFF',
-      fontFamily: 'Inter_700Bold',
+      fontSize: 22, fontWeight: '700' as const,
+      color: '#FFFFFF', fontFamily: 'Inter_700Bold',
     },
   });
 
+  const isShowingOpponent =
+    phase === 'opponent_display' ||
+    matchState.status === 'matched' ||
+    matchState.status === 'offline_ai';
+
   return (
     <View style={styles.container}>
-      {/* Real-time Matchmaking Overlay */}
+      {/* Matchmaking Modal — visible while searching */}
       <MatchmakingModal
-        visible={matchState.status === 'searching' || (matchState.status === 'matched' && phase === 'searching')}
+        visible={matchState.status === 'searching'}
         gameTitle="⚡ Tap Race"
         stake={stake}
         searchSeconds={searchSeconds}
         playerUsername={user?.username || 'You'}
         opponentUsername={matchState.opponentUsername || 'Challenger'}
-        isMatched={matchState.status === 'matched'}
-        onCancel={() => {
-          cancelSearch();
-          router.back();
-        }}
+        isMatched={false}
+        onCancel={() => { cancelSearch(); router.back(); }}
         onPlayBot={switchToBotMatch}
+      />
+
+      {/* Opponent matched screen (4-second display phase) */}
+      <MatchmakingModal
+        visible={matchState.status === 'matched' && phase === 'opponent_display'}
+        gameTitle="⚡ Tap Race"
+        stake={stake}
+        searchSeconds={0}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={true}
+        onCancel={() => {}}
+        onPlayBot={() => {}}
       />
 
       {/* Top bar */}
       <View style={styles.topBar}>
         <Pressable
           style={styles.backBtn}
-          onPress={() => {
-            cancelSearch();
-            router.back();
-          }}
+          onPress={() => { cancelSearch(); router.back(); }}
         >
           <Ionicons name="arrow-back" size={20} color={colors.foreground} />
         </Pressable>
@@ -443,8 +442,8 @@ export default function PlayScreen() {
         </View>
       </View>
 
-      {/* Opponent Identity Banner */}
-      {(matchState.status === 'matched' || matchState.status === 'offline_ai') && (
+      {/* Opponent Identity Banner (shown during and after display phase) */}
+      {isShowingOpponent && phase !== 'opponent_display' && (
         <View style={styles.opponentBanner}>
           <MaterialCommunityIcons
             name={matchState.isPractice ? 'robot' : 'account'}
@@ -465,11 +464,9 @@ export default function PlayScreen() {
               styles.instructionTitle,
               {
                 color:
-                  phase === 'ready'
-                    ? colors.accent
-                    : phase === 'early'
-                    ? colors.destructive
-                    : colors.foreground,
+                  phase === 'ready' ? colors.accent
+                  : phase === 'early' ? colors.destructive
+                  : colors.foreground,
               },
             ]}
           >
@@ -481,6 +478,8 @@ export default function PlayScreen() {
               ? '❌ Too Early!'
               : phase === 'done'
               ? 'Done!'
+              : phase === 'opponent_display'
+              ? 'Opponent Found!'
               : 'Waiting for Match...'}
           </Text>
           <Text style={styles.instructionSub}>
@@ -490,6 +489,8 @@ export default function PlayScreen() {
               ? 'Fastest reaction wins!'
               : phase === 'early'
               ? 'Foul start — automatic round loss'
+              : phase === 'opponent_display'
+              ? 'Get ready — game starts in a moment...'
               : ''}
           </Text>
         </View>

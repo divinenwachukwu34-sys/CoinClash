@@ -41,6 +41,7 @@ export default function MemoryFlashScreen() {
   } = useLiveMatch('memory-flash', stake);
 
   const hasSentStart = useRef(false);
+  const displayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [gameReady, setGameReady] = useState(false);
   const sequence = useRef(buildSequence());
@@ -58,11 +59,16 @@ export default function MemoryFlashScreen() {
     startSearching();
   }, [startSearching]);
 
-  // Send GAME_START when matched
+  // When matched: show opponent 4 seconds then send GAME_START
   useEffect(() => {
     if (matchState.status === 'matched' && !hasSentStart.current) {
       hasSentStart.current = true;
-      sendGameStart();
+      displayTimerRef.current = setTimeout(() => {
+        sendGameStart();
+      }, 4000);
+      return () => {
+        if (displayTimerRef.current) clearTimeout(displayTimerRef.current);
+      };
     }
   }, [matchState.status, sendGameStart]);
 

@@ -65,6 +65,7 @@ export default function MathDuelScreen() {
   } = useLiveMatch('math-duel', stake);
 
   const hasSentStart = useRef(false);
+  const displayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const problems = useRef(Array.from({ length: ROUNDS }, buildProblem));
   const [roundIdx, setRoundIdx] = useState(0);
@@ -90,11 +91,16 @@ export default function MathDuelScreen() {
     startSearching();
   }, [startSearching]);
 
-  // Send GAME_START when matched
+  // When matched: show opponent 4 seconds then send GAME_START
   useEffect(() => {
     if (matchState.status === 'matched' && !hasSentStart.current) {
       hasSentStart.current = true;
-      sendGameStart();
+      displayTimerRef.current = setTimeout(() => {
+        sendGameStart();
+      }, 4000);
+      return () => {
+        if (displayTimerRef.current) clearTimeout(displayTimerRef.current);
+      };
     }
   }, [matchState.status, sendGameStart]);
 

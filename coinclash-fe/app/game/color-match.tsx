@@ -65,6 +65,7 @@ export default function ColorMatchScreen() {
   } = useLiveMatch('color-match', stake);
 
   const hasSentStart = useRef(false);
+  const displayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rounds = useRef(Array.from({ length: ROUNDS }, buildRound));
   const [roundIdx, setRoundIdx] = useState(0);
@@ -90,15 +91,20 @@ export default function ColorMatchScreen() {
     startSearching();
   }, [startSearching]);
 
-  // Send GAME_START when matched
+  // When matched: show opponent 4 seconds then send GAME_START
   useEffect(() => {
     if (matchState.status === 'matched' && !hasSentStart.current) {
       hasSentStart.current = true;
-      sendGameStart();
+      displayTimerRef.current = setTimeout(() => {
+        sendGameStart();
+      }, 4000);
+      return () => {
+        if (displayTimerRef.current) clearTimeout(displayTimerRef.current);
+      };
     }
   }, [matchState.status, sendGameStart]);
 
-  // When game begins
+  // When GAME_BEGIN arrives (status becomes 'playing') OR offline_ai: start game
   useEffect(() => {
     if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
