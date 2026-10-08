@@ -61,12 +61,12 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
         # in production even if the pool is somehow unavailable at startup.
         import os
         if os.getenv("TESTING") == "1":
-            from routers.admin import ADMIN_EMAIL
-            email = ADMIN_EMAIL if user_id == 9999 else f"user{user_id}@test.com"
+            email = "test-admin@coinclash.local" if user_id == 9999 else f"user{user_id}@test.com"
             return {
                 "id": user_id,
                 "email": email,
                 "username": f"User_{user_id}",
+                "role": "admin" if user_id == 9999 else "player",
                 "status": "active",
                 "token_version": 1,
                 "is_verified": True,

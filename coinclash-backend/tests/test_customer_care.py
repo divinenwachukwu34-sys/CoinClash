@@ -35,7 +35,6 @@ os.environ["TESTING"] = "1"
 from fastapi.testclient import TestClient
 from main import app
 from routers.matchmaking_ws import JWT_SECRET
-from routers.admin import ADMIN_EMAIL
 import database
 
 
@@ -55,7 +54,7 @@ def test_customer_care_full_lifecycle():
     # Generate JWTs for two regular users and one admin user
     u1_jwt = generate_test_jwt(9101, "user1@test.com", "SupportUser1")
     u2_jwt = generate_test_jwt(9102, "user2@test.com", "SupportUser2")
-    admin_jwt = generate_test_jwt(9999, ADMIN_EMAIL, "AdminUser")
+    admin_jwt = generate_test_jwt(9999, "test-admin@coinclash.local", "AdminUser")
 
     headers1 = {"Authorization": f"Bearer {u1_jwt}"}
     headers2 = {"Authorization": f"Bearer {u2_jwt}"}

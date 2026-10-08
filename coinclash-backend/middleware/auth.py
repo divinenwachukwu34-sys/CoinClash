@@ -45,6 +45,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             "userId": user["id"],
             "email": user["email"],
             "username": user["username"],
+            "role": user.get("role", "player"),
             "is_verified": user.get("is_verified", False),
             "status": user.get("status", "active"),
             "tokenVersion": token_version,

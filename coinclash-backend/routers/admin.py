@@ -4,10 +4,8 @@ from middleware.auth import get_current_user
 
 router = APIRouter()
 
-ADMIN_EMAIL = "divinenwachukwu34@gmail.com"
-
 def require_admin(user: dict = Depends(get_current_user)):
-    if user.get("email") != ADMIN_EMAIL:
+    if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     return user
 

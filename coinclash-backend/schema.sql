@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(255) UNIQUE NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'player',
     phone VARCHAR(30) UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     coin_balance INTEGER DEFAULT 0,

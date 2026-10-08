@@ -21,8 +21,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { api, SupportMessage, SupportTicketDetail } from '@/lib/api';
 
-const ADMIN_EMAIL = 'admin@coinclash.com';
-
 const STATUS_OPTIONS = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 const PRIORITY_OPTIONS = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
 
@@ -45,7 +43,7 @@ export default function AdminTicketDetailScreen() {
 
   // Admin Guard
   useEffect(() => {
-    if (user && user.email !== ADMIN_EMAIL) {
+    if (user && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
   }, [user]);

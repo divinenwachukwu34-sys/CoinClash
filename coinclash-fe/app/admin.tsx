@@ -11,8 +11,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
-const ADMIN_EMAIL = 'admin@coinclash.com';
-
 export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -24,7 +22,7 @@ export default function AdminScreen() {
 
   // Guard: only admin can see this
   useEffect(() => {
-    if (user && user.email !== ADMIN_EMAIL) {
+    if (user && user.role !== 'admin') {
       Alert.alert('Access Denied', 'This page is for admins only.');
       router.replace('/(tabs)');
     }
