@@ -103,6 +103,17 @@ export default function AdminScreen() {
           contentContainerStyle={s.scroll}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
+          {/* ── Customer Care Quick Access ── */}
+          <Pressable style={s.card} onPress={() => router.push('/admin/support')}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ gap: 4 }}>
+                <Text style={[s.cardTitle, { color: colors.primary, marginBottom: 0 }]}>🎧 Customer Care & Tickets</Text>
+                <Text style={s.label}>Manage user support requests, replies & FAQs</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color={colors.primary} />
+            </View>
+          </Pressable>
+
           {/* ── Overview Stats ── */}
           <View style={s.card}>
             <Text style={s.cardTitle}>📊 Overview</Text>

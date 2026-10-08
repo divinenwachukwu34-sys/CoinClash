@@ -191,6 +191,54 @@ export const api = {
     request<TournamentSubmitResult>(`/tournaments/${id}/submit`, {
       method: 'POST', body: JSON.stringify({ won, gameType, playerScore, opponentScore })
     }, token),
+
+  // Customer Care / Support — User
+  getFaqs: (token?: string, category?: string, q?: string) => {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (q) params.append('q', q);
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    return request<{ faqs: SupportFaq[] }>(`/support/faqs${queryStr}`, {}, token);
+  },
+  getFaqDetail: (id: number, token?: string) =>
+    request<{ faq: SupportFaq }>(`/support/faqs/${id}`, {}, token),
+  getUserTickets: (token: string, status?: string) => {
+    const queryStr = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request<{ tickets: SupportTicket[] }>(`/support/tickets${queryStr}`, {}, token);
+  },
+  createTicket: (data: { category: string; subject: string; message: string; related_transaction_id?: number; attachment_data?: string }, token: string) =>
+    request<{ success: boolean; ticket: SupportTicket }>(`/support/tickets`, { method: 'POST', body: JSON.stringify(data) }, token),
+  getTicketDetail: (id: number, token: string) =>
+    request<{ ticket: SupportTicketDetail }>(`/support/tickets/${id}`, {}, token),
+  sendTicketMessage: (id: number, message: string, attachment_data?: string, token?: string) =>
+    request<{ success: boolean; message: SupportMessage }>(`/support/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ message, attachment_data }) }, token),
+  closeTicket: (id: number, token: string) =>
+    request<{ success: boolean; message: string }>(`/support/tickets/${id}/close`, { method: 'POST' }, token),
+
+  // Customer Care / Support — Admin
+  getAdminTickets: (token: string, filters?: { status?: string; priority?: string; category?: string; search?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.priority) params.append('priority', filters.priority);
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.search) params.append('search', filters.search);
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    return request<{ total: number; counts: { open: number; in_progress: number; resolved: number; closed: number }; tickets: SupportTicket[] }>(`/admin/support/tickets${queryStr}`, {}, token);
+  },
+  getAdminTicketDetail: (id: number, token: string) =>
+    request<{ ticket: SupportTicketDetail }>(`/admin/support/tickets/${id}`, {}, token),
+  sendAdminTicketMessage: (id: number, message: string, attachment_data?: string, token?: string) =>
+    request<{ success: boolean; message: SupportMessage }>(`/admin/support/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ message, attachment_data }) }, token),
+  updateAdminTicket: (id: number, data: { status?: string; priority?: string }, token: string) =>
+    request<{ success: boolean; ticket: SupportTicket }>(`/admin/support/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+  getAdminFaqs: (token: string) =>
+    request<{ faqs: SupportFaq[] }>(`/admin/support/faqs`, {}, token),
+  createAdminFaq: (data: { category: string; question: string; answer: string }, token: string) =>
+    request<{ success: boolean; faq: SupportFaq }>(`/admin/support/faqs`, { method: 'POST', body: JSON.stringify(data) }, token),
+  updateAdminFaq: (id: number, data: { category?: string; question?: string; answer?: string; is_active?: boolean }, token: string) =>
+    request<{ success: boolean; faq: SupportFaq }>(`/admin/support/faqs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+  deleteAdminFaq: (id: number, token: string) =>
+    request<{ success: boolean; message: string }>(`/admin/support/faqs/${id}`, { method: 'DELETE' }, token),
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -346,3 +394,60 @@ export interface TournamentSubmitResult {
   status: string;
   eliminated: boolean;
 }
+
+export interface SupportFaq {
+  id: number;
+  category: string;
+  question: string;
+  answer: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupportMessage {
+  id: number;
+  ticket_id: number;
+  sender_id: number | null;
+  sender_type: 'USER' | 'ADMIN' | 'AI' | 'WHATSAPP';
+  message: string;
+  attachment_url?: string | null;
+  created_at: string;
+  read_at?: string | null;
+}
+
+export interface SupportTicket {
+  id: number;
+  ticket_number: string;
+  user_id: number;
+  category: string;
+  subject: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  related_transaction_id?: number | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string | null;
+  closed_at?: string | null;
+  unread_admin_count?: number;
+  unread_user_count?: number;
+  last_message?: string;
+  username?: string;
+  email?: string;
+}
+
+export interface SupportTicketDetail extends SupportTicket {
+  messages: SupportMessage[];
+  user?: { id: number; username: string; email: string; phone?: string; coin_balance: number };
+  related_transaction?: {
+    id: number;
+    type: string;
+    amount_coins: number;
+    amount_ngn: number;
+    description: string;
+    reference: string;
+    status: string;
+    created_at: string;
+  } | null;
+}
+

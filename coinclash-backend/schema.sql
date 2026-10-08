@@ -201,3 +201,50 @@ CREATE TABLE IF NOT EXISTS tournament_players (
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (tournament_id, user_id)
 );
+
+-- ── Customer Care / Support Tables ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id SERIAL PRIMARY KEY,
+    ticket_number VARCHAR(20) UNIQUE NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    category VARCHAR(50) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    status VARCHAR(30) DEFAULT 'OPEN', -- 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'
+    priority VARCHAR(30) DEFAULT 'NORMAL', -- 'LOW', 'NORMAL', 'HIGH', 'URGENT'
+    related_transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    closed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_priority ON support_tickets(priority);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_updated ON support_tickets(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+    id SERIAL PRIMARY KEY,
+    ticket_id INTEGER REFERENCES support_tickets(id) ON DELETE CASCADE,
+    sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    sender_type VARCHAR(30) NOT NULL, -- 'USER', 'ADMIN', 'AI', 'WHATSAPP'
+    message TEXT NOT NULL,
+    attachment_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_messages_ticket ON support_messages(ticket_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS support_faqs (
+    id SERIAL PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_faqs_category ON support_faqs(category);
+
