@@ -60,8 +60,8 @@ def test_both_players_never_start():
 
             assert res1["event"] == "GAME_OVER"
             assert res2["event"] == "GAME_OVER"
-            assert res1["won"] is False and res2["won"] is False, "Neither player should win if neither started"
-            assert res1["isDraw"] is True or res1["cancelled"] is True, "Must be flagged as draw/cancelled"
+            assert res1["winnerId"] is None and res2["winnerId"] is None, "Neither player should win if neither started"
+            assert res1["isDraw"] is False and res1["cancelled"] is True, "Unstarted match must be cancelled, not a draw"
             assert res1["reason"] == "NEITHER_PLAYER_STARTED"
             assert res1["prize"] == 0 and res2["prize"] == 0, "No winner prize for unstarted match"
 
@@ -90,8 +90,7 @@ def test_player1_starts_player2_never_starts():
             res1 = ws1.receive_json()
             res2 = ws2.receive_json()
 
-            assert res1["won"] is True, "Player 1 who started must win by default against unstarted Player 2"
-            assert res2["won"] is False
+            assert res1["winnerId"] == 811 and res2["winnerId"] == 811, "Player 1 must win by default"
             assert res1["reason"] == "OPPONENT_NEVER_STARTED"
             assert res1["prize"] == 95, "P1 receives winner prize"
 
@@ -120,8 +119,7 @@ def test_player2_starts_player1_never_starts():
             res1 = ws1.receive_json()
             res2 = ws2.receive_json()
 
-            assert res1["won"] is False
-            assert res2["won"] is True, "Player 2 who started must win by default against unstarted Player 1"
+            assert res1["winnerId"] == 822 and res2["winnerId"] == 822, "Player 2 must win by default"
             assert res2["reason"] == "OPPONENT_NEVER_STARTED"
             assert res2["prize"] == 95
 
@@ -156,7 +154,7 @@ def test_both_start_and_both_score_zero():
             res2 = ws2.receive_json()
 
             assert res1["event"] == "GAME_OVER" and res2["event"] == "GAME_OVER"
-            assert res1["won"] is False and res2["won"] is False, "Neither player wins a 0-0 draw match"
+            assert res1["winnerId"] is None and res2["winnerId"] is None, "Neither player wins a 0-0 draw match"
             assert res1["isDraw"] is True and res2["isDraw"] is True, "Must be flagged as a Draw"
             assert res1["prize"] == 0 and res2["prize"] == 0, "No winner prize awarded on a 0-0 draw"
             assert res1["reason"] == "DRAW_ZERO_SCORE"
@@ -191,8 +189,7 @@ def test_both_start_and_one_scores_greater_than_zero():
             res2 = ws2.receive_json()
 
             assert res1["event"] == "GAME_OVER" and res2["event"] == "GAME_OVER"
-            assert res1["won"] is True, "Player with score > 0 must win against score 0"
-            assert res2["won"] is False
+            assert res1["winnerId"] == 841 and res2["winnerId"] == 841, "Player with score > 0 must win against score 0"
             assert res1["prize"] == 35
 
     print("[PASS] test_both_start_and_one_scores_greater_than_zero")
