@@ -21,6 +21,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { api, SupportFaq } from '@/lib/api';
 
+const ADMIN_EMAIL = 'admin@coinclash.com';
+
 const CATEGORIES = [
   'Payments & Deposits',
   'Withdrawals',
@@ -54,7 +56,7 @@ export default function AdminFaqScreen() {
 
   // Admin Guard
   useEffect(() => {
-    if (user && user.role !== 'admin') {
+    if (user && !user.isAdmin && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
   }, [user]);
