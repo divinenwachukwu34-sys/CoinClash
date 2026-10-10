@@ -27,7 +27,7 @@ export default function AdminScreen() {
       router.replace('/(auth)/login');
       return;
     }
-    if (!user.isAdmin && user.role !== 'admin') {
+    if (!user.isAdmin && user.role !== 'admin' && user.role !== 'owner') {
       Alert.alert('Access Denied', 'This page is for admins only.');
       router.replace('/(tabs)');
     }

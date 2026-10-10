@@ -487,7 +487,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={s.recentGameInfo}>
                   <Text style={s.recentGameTitle}>
-                    {g.won ? 'Victory' : 'Defeat'} • {getGameTitle(g.gameType)}
+                    {g.won ? 'Victory' : 'Defeat'} • {getGameTitle(g.gameType ?? '')}
                   </Text>
                   <Text style={s.recentGameSub}>
                     Opponent • {formatRelTime(g.timestamp)}

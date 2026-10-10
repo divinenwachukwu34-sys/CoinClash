@@ -40,7 +40,7 @@ export default function AdminSupportDashboardScreen() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace('/(auth)/login'); return; }
-    if (!user.isAdmin && user.role !== 'admin') {
+    if (!user.isAdmin && user.role !== 'admin' && user.role !== 'owner') {
       router.replace('/(tabs)');
     }
   }, [user, authLoading]);

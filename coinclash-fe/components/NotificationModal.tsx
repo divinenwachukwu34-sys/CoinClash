@@ -191,7 +191,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ visible, o
     emptyState: {
       paddingVertical: 48,
       alignItems: 'center',
-      justify: 'center',
+      justifyContent: 'center',
       gap: 12,
     },
     emptyTitle: {
