@@ -26,7 +26,7 @@ export default function AdminSupportDashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user, token, authLoading } = useAuth();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [counts, setCounts] = useState({ open: 0, in_progress: 0, resolved: 0, closed: 0 });
@@ -36,12 +36,14 @@ export default function AdminSupportDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-// Admin Guard
+  // Admin Guard
   useEffect(() => {
-    if (user && !user.isAdmin && user.role !== 'admin') {
+    if (authLoading) return;
+    if (!user) { router.replace('/(auth)/login'); return; }
+    if (!user.isAdmin && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchTickets = useCallback(async () => {
     if (!token) return;

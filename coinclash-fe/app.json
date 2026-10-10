@@ -29,14 +29,14 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://coinclash.live"
         }
       ],
       "expo-font",
       "expo-web-browser"
     ],
     "experiments": {
-      "typedRoutes": true,
+      "typedRoutes": false,
       "reactCompiler": true
     },
     "extra": {

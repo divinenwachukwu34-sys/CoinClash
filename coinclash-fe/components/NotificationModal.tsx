@@ -121,7 +121,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ visible, o
       borderRadius: 16,
       backgroundColor: colors.muted + '40',
       alignItems: 'center',
-      justify: 'center',
+      justifyContent: 'center',
     },
     actionsRow: {
       flexDirection: 'row',
@@ -164,7 +164,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ visible, o
       height: 42,
       borderRadius: 12,
       alignItems: 'center',
-      justify: 'center',
+      justifyContent: 'center',
     },
     textContainer: {
       flex: 1,

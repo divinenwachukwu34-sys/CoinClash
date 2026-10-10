@@ -39,7 +39,7 @@ export default function AdminFaqScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user, token, authLoading } = useAuth();
 
   const [faqs, setFaqs] = useState<SupportFaq[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,10 +56,12 @@ export default function AdminFaqScreen() {
 
   // Admin Guard
   useEffect(() => {
-    if (user && !user.isAdmin && user.role !== 'admin') {
+    if (authLoading) return;
+    if (!user) { router.replace('/(auth)/login'); return; }
+    if (!user.isAdmin && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchFaqs = useCallback(async () => {
     if (!token) return;

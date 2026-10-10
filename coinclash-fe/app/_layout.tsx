@@ -31,10 +31,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
     const inAuth = segments[0] === '(auth)';
+    const inAdmin = segments[0] === 'admin';
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
     } else if (user && inAuth) {
-      router.replace('/(tabs)');
+      // Logged-in admin goes to admin panel; regular users go to tabs
+      if (user.isAdmin || user.role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/(tabs)');
+      }
     }
   }, [user, authLoading, segments]);
 
@@ -59,6 +65,14 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="admin" />
+      <Stack.Screen name="admin/support/index" />
+      <Stack.Screen name="admin/support/[id]" />
+      <Stack.Screen name="admin/support/faqs" />
+      <Stack.Screen name="support/index" />
+      <Stack.Screen name="support/[id]" />
+      <Stack.Screen name="support/create" />
+      <Stack.Screen name="support/faqs" />
       <Stack.Screen name="game/select" options={SLIDE_UP} />
       <Stack.Screen name="game/play" options={SLIDE_UP} />
       <Stack.Screen name="game/color-match" options={SLIDE_UP} />

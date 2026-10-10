@@ -77,7 +77,7 @@ function GameCard({
           borderWidth: 1.5,
           borderColor: game.color + '40',
           alignItems: 'center',
-          justify: 'center',
+          justifyContent: 'center',
         }}
       >
         <Image

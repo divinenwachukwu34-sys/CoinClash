@@ -15,18 +15,23 @@ export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { user, token, authLoading } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Guard: only dedicated admin can see this
+  // Guard: only dedicated admin can see this (wait for auth to resolve first)
   useEffect(() => {
-    if (user && !user.isAdmin && user.role !== 'admin') {
+    if (authLoading) return; // Don't check while auth is still loading
+    if (!user) {
+      router.replace('/(auth)/login');
+      return;
+    }
+    if (!user.isAdmin && user.role !== 'admin') {
       Alert.alert('Access Denied', 'This page is for admins only.');
       router.replace('/(tabs)');
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchStats = useCallback(async () => {
     if (!token) return;

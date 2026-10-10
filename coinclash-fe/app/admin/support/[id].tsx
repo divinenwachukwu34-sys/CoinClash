@@ -32,7 +32,7 @@ export default function AdminTicketDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const ticketId = parseInt(id ?? '0', 10);
-  const { user, token } = useAuth();
+  const { user, token, authLoading } = useAuth();
 
   const [ticket, setTicket] = useState<SupportTicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,10 +45,12 @@ export default function AdminTicketDetailScreen() {
 
   // Admin Guard
   useEffect(() => {
-    if (user && !user.isAdmin && user.role !== 'admin') {
+    if (authLoading) return;
+    if (!user) { router.replace('/(auth)/login'); return; }
+    if (!user.isAdmin && user.role !== 'admin') {
       router.replace('/(tabs)');
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   const fetchTicket = useCallback(async (silent = false) => {
     if (!token || !ticketId) return;
