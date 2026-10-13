@@ -36,7 +36,12 @@ const GAMES = [
   { id: 'memory-flash', name: 'Memory Flash', description: 'Memorize and tap sequence order', icon: 'eye' as const, color: '#8B5CF6' },
   { id: 'word-scramble', name: 'Word Scramble', description: 'Unscramble letters to find the word', icon: 'text' as const, color: '#14B8A6' },
   { id: 'trivia', name: 'Trivia Clash', description: 'Answer general knowledge questions', icon: 'help-circle' as const, color: '#A78BFA' },
-  { id: 'number-catch', name: 'Number Catch', description: 'Catch the exact target number', icon: 'analytics' as const, color: '#F97316' },
+  { id: 'archery', name: 'Archery 3D', description: 'Aim with wind drift and hit bullseyes in 3D', icon: 'locate' as const, color: '#10B981' },
+  { id: 'basketball', name: 'Basketball 3D', description: 'Swipe to shoot 3-pointers and swishes in 3D', icon: 'basketball' as const, color: '#F97316' },
+  { id: 'penalty', name: 'Penalty Shootout 3D', description: 'Five-kick showdown as kicker & goalkeeper in 3D', icon: 'football' as const, color: '#3B82F6' },
+  { id: 'sumo', name: 'Sumo Clash 3D', description: 'Tap fast to push opponent out of the 3D ring', icon: 'barbell' as const, color: '#EF4444' },
+  { id: 'ring-rush', name: 'Ring Rush 3D', description: 'Strategic 3D ring stacking puzzle race', icon: 'disc' as const, color: '#8B5CF6' },
+  { id: 'number-catch', name: 'Number Catch', description: 'Catch target numbers before time expires', icon: 'finger-print' as const, color: '#F97316' },
   { id: 'play', name: 'Tap Race', description: 'Fastest tap reaction after the signal', icon: 'flash' as const, color: '#F59E0B' },
 ];
 

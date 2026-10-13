@@ -44,7 +44,12 @@ const POPULAR_GAMES = [
   { id: 'swipe-duel', name: 'Swipe Duel', tag: 'Directional Speed', color: '#10B981' },
   { id: 'memory-flash', name: 'Memory Flash', tag: 'Pattern Sequence', color: '#8B5CF6' },
   { id: 'word-scramble', name: 'Word Scramble', tag: 'Anagram Puzzle', color: '#14B8A6' },
-  { id: 'trivia', name: 'Trivia Clash', tag: 'Knowledge Battle', color: '#A78BFA' },
+  { id: 'archery', name: 'Archery 3D', tag: '3D Precision', color: '#10B981' },
+  { id: 'basketball', name: 'Basketball 3D', tag: '3D Shootout', color: '#F97316' },
+  { id: 'penalty', name: 'Penalty 3D', tag: '3D Football', color: '#3B82F6' },
+  { id: 'sumo', name: 'Sumo Clash 3D', tag: '3D Arcade', color: '#EF4444' },
+  { id: 'ring-rush', name: 'Ring Rush 3D', tag: '3D Puzzle', color: '#8B5CF6' },
+  { id: 'trivia', name: 'Trivia Clash', tag: 'Knowledge', color: '#A78BFA' },
   { id: 'number-catch', name: 'Number Catch', tag: 'Focus Target', color: '#F97316' },
 ];
 

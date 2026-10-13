@@ -83,6 +83,11 @@ function RootLayoutNav() {
       <Stack.Screen name="game/number-catch" options={SLIDE_UP} />
       <Stack.Screen name="game/word-scramble" options={SLIDE_UP} />
       <Stack.Screen name="game/trivia" options={SLIDE_UP} />
+      <Stack.Screen name="game/archery" options={SLIDE_UP} />
+      <Stack.Screen name="game/basketball" options={SLIDE_UP} />
+      <Stack.Screen name="game/penalty" options={SLIDE_UP} />
+      <Stack.Screen name="game/sumo" options={SLIDE_UP} />
+      <Stack.Screen name="game/ring-rush" options={SLIDE_UP} />
       <Stack.Screen name="game/result" options={FADE} />
     </Stack>
   );
