@@ -35,8 +35,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
     } else if (user && inAuth) {
-      // Logged-in admin goes to admin panel; regular users go to tabs
-      if (user.isAdmin || user.role === 'admin') {
+      // Logged-in admin/owner goes to admin panel; regular users go to tabs
+      if (user.isAdmin || user.role === 'admin' || user.role === 'owner') {
         router.replace('/admin');
       } else {
         router.replace('/(tabs)');

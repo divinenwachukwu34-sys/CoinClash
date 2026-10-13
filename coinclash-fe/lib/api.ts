@@ -239,6 +239,51 @@ export const api = {
     request<{ success: boolean; faq: SupportFaq }>(`/admin/support/faqs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
   deleteAdminFaq: (id: number, token: string) =>
     request<{ success: boolean; message: string }>(`/admin/support/faqs/${id}`, { method: 'DELETE' }, token),
+
+  // Admin — User Management
+  getAdminUsers: (token: string, params?: { search?: string; status?: string; flagged?: boolean; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.append('search', params.search);
+    if (params?.status) q.append('status', params.status);
+    if (params?.flagged !== undefined) q.append('flagged', String(params.flagged));
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<{ total: number; users: any[] }>(`/admin/users${qs}`, {}, token);
+  },
+  getAdminUserDetail: (id: number, token: string) =>
+    request<{ user: any; sessions: any[]; securityLogs: any[]; referrals: any[] }>(`/admin/users/${id}`, {}, token),
+  updateAdminUserStatus: (id: number, status: string, token: string) =>
+    request<{ success: boolean; message: string }>(`/admin/users/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }, token),
+  flagAdminUser: (id: number, is_flagged: boolean, flag_reason: string, token: string) =>
+    request<{ success: boolean; message: string }>(`/admin/users/${id}/flag`, { method: 'POST', body: JSON.stringify({ is_flagged, flag_reason }) }, token),
+
+  // Admin — Transactions
+  getAdminTransactions: (token: string, params?: { type?: string; status?: string; limit?: number; offset?: number; user_id?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.type) q.append('type', params.type);
+    if (params?.status) q.append('status', params.status);
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
+    if (params?.user_id !== undefined) q.append('user_id', String(params.user_id));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<{ total: number; transactions: any[] }>(`/admin/transactions${qs}`, {}, token);
+  },
+
+  // Admin — Security Logs
+  getAdminSecurityLogs: (token: string, params?: { action?: string; user_id?: number; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.action) q.append('action', params.action);
+    if (params?.user_id) q.append('user_id', String(params.user_id));
+    if (params?.limit !== undefined) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<{ logs: any[] }>(`/admin/security-logs${qs}`, {}, token);
+  },
+
+  // Admin — Referrals
+  getAdminReferrals: (token: string) =>
+    request<{ referrals: any[] }>('/admin/referrals', {}, token),
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -247,7 +292,6 @@ export interface User {
   id: number;
   email: string;
   username: string;
-  role?: string;
   phone?: string;
   coinBalance: number;
   isVerified?: boolean;

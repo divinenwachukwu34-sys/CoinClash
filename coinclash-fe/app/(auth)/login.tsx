@@ -51,8 +51,13 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      await login(identifier.trim(), password);
-      router.replace('/(tabs)');
+      const loggedInUser = await login(identifier.trim(), password);
+      // Route admin/owner to admin dashboard, everyone else to tabs
+      if (loggedInUser?.isAdmin || loggedInUser?.role === 'admin' || loggedInUser?.role === 'owner') {
+        router.replace('/admin' as any);
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       setErrorMsg(err.message ?? 'Login failed. Please check your credentials and try again.');
     } finally {

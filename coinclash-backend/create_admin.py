@@ -59,7 +59,8 @@ async def create_dedicated_admin(
     email: str,
     username: str,
     password: str,
-    conn=None
+    conn=None,
+    role: str = "admin"
 ) -> dict:
     """
     Safely creates a new dedicated admin account.
@@ -119,15 +120,17 @@ async def create_dedicated_admin(
         # 3. Hash password with bcrypt
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-        # 4. Insert dedicated admin account
+        target_role = "owner" if role.strip().lower() == "owner" else "admin"
+
+        # 4. Insert dedicated admin/owner account
         row = await conn.fetchrow(
             """
             INSERT INTO users (
                 email, username, password_hash, role, is_admin, is_verified, status, coin_balance
-            ) VALUES ($1, $2, $3, 'admin', TRUE, TRUE, 'active', 0)
+            ) VALUES ($1, $2, $3, $4, TRUE, TRUE, 'active', 0)
             RETURNING id, email, username, role, is_admin, is_verified, status, created_at
             """,
-            clean_email, clean_username, hashed
+            clean_email, clean_username, hashed, target_role
         )
         return dict(row)
     finally:
@@ -136,10 +139,11 @@ async def create_dedicated_admin(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CoinClash Dedicated Admin Account Setup")
-    parser.add_argument("--email", help="Admin email address")
-    parser.add_argument("--username", help="Admin username")
-    parser.add_argument("--password", help="Admin password (optional; if omitted, secure prompt will be used)")
+    parser = argparse.ArgumentParser(description="CoinClash Dedicated Admin/Owner Account Setup")
+    parser.add_argument("--email", help="Admin/Owner email address")
+    parser.add_argument("--username", help="Admin/Owner username")
+    parser.add_argument("--password", help="Admin/Owner password (optional; if omitted, secure prompt will be used)")
+    parser.add_argument("--role", default="admin", help="Account role ('admin' or 'owner', default: 'admin')")
 
     args = parser.parse_args()
 
@@ -162,8 +166,10 @@ def main():
             print("\n[ERROR] Passwords do not match.")
             sys.exit(1)
 
+    role = args.role or os.getenv("ADMIN_SETUP_ROLE", "admin")
+
     try:
-        res = asyncio.run(create_dedicated_admin(email, username, password))
+        res = asyncio.run(create_dedicated_admin(email, username, password, role=role))
         print("\n[SUCCESS] Dedicated admin account created successfully!")
         print(f"  - Account ID : {res['id']}")
         print(f"  - Email      : {res['email']}")

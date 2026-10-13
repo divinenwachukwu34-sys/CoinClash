@@ -105,7 +105,7 @@ def test_create_admin_safety_with_mock_conn():
                     "id": new_id,
                     "email": args[0],
                     "username": args[1],
-                    "role": "admin",
+                    "role": args[3] if len(args) > 3 else "admin",
                     "is_admin": True,
                     "is_verified": True,
                     "status": "active",
@@ -160,6 +160,20 @@ def test_create_admin_safety_with_mock_conn():
     assert created["role"] == "admin"
     assert created["is_admin"] is True
     print("[PASS] 2c. Dedicated admin created cleanly with role='admin' and is_admin=True")
+
+    # Scenario D: Clean creation with role='owner'
+    created_owner = asyncio.run(create_dedicated_admin(
+        email="dedicated_owner@coinclash.internal",
+        username="unique_owner",
+        password="ValidAdminPass#1",
+        conn=mock_conn,
+        role="owner"
+    ))
+    assert created_owner["email"] == "dedicated_owner@coinclash.internal"
+    assert created_owner["username"] == "unique_owner"
+    assert created_owner["role"] == "owner"
+    assert created_owner["is_admin"] is True
+    print("[PASS] 2d. Dedicated owner created cleanly with role='owner' and is_admin=True")
 
 
 def test_api_admin_authorization():

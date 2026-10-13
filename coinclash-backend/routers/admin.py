@@ -288,3 +288,44 @@ async def get_admin_referrals(admin: dict = Depends(require_admin)):
         )
         return {"referrals": [dict(r) for r in rows]}
 
+
+# ── Admin Transaction Monitoring ─────────────────────────────────────────────
+@router.get("/transactions")
+async def get_admin_transactions(
+    type: str = None,
+    status: str = None,
+    user_id: int = None,
+    limit: int = 50,
+    offset: int = 0,
+    admin: dict = Depends(require_admin)
+):
+    """List all transactions with optional type/status/user filters."""
+    query = """
+        SELECT t.id, t.user_id, u.username, u.email,
+               t.type, t.amount_coins, t.amount_ngn, t.status,
+               t.reference, t.description, t.created_at
+        FROM transactions t
+        JOIN users u ON u.id = t.user_id
+        WHERE 1=1
+    """
+    params = []
+
+    if type:
+        params.append(type)
+        query += f" AND t.type = ${len(params)}"
+    if status:
+        params.append(status)
+        query += f" AND t.status = ${len(params)}"
+    if user_id:
+        params.append(user_id)
+        query += f" AND t.user_id = ${len(params)}"
+
+    query += f" ORDER BY t.created_at DESC LIMIT {limit} OFFSET {offset}"
+
+    async with database.pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+        total = await conn.fetchval("SELECT COUNT(*) FROM transactions")
+        return {
+            "total": total,
+            "transactions": [dict(r) for r in rows]
+        }

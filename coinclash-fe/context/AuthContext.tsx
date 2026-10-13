@@ -22,7 +22,7 @@ interface AuthContextType {
   authLoading: boolean;
   avatar: AvatarData;
   setAvatar: (emoji: string | null, photo: string | null) => Promise<void>;
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<User>;
   signupInitiate: (email: string, username: string, password: string, phone: string, referralCode?: string) => Promise<{ requiresOtp: boolean; message: string; resendCooldown: number }>;
   signupVerify: (email: string, code: string, referralCode?: string) => Promise<{ referralMessage?: string; message: string }>;
   resendOtp: (email: string, purpose?: string) => Promise<void>;
@@ -86,9 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (identifier: string, password: string) => {
+    async (identifier: string, password: string): Promise<User> => {
       const res = await api.login(identifier, password);
       await persist(res.token, res.user);
+      return res.user;
     },
     [persist]
   );
