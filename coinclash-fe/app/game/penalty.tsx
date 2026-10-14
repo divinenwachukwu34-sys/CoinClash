@@ -98,80 +98,204 @@ export default function PenaltyScreen() {
 
   // Build Scene
   const buildScene = useCallback((scene: THREE.Scene) => {
-    // Pitch / Grass
-    const pitchGeo = new THREE.PlaneGeometry(24, 30);
-    const pitchMat = new THREE.MeshStandardMaterial({ color: 0x1e7e34, roughness: 0.8 });
+    // Red Curved Stadium Stands (as in screenshot)
+    const stadiumGeo = new THREE.CylinderGeometry(18, 18, 9, 32, 1, true, -Math.PI * 0.7, Math.PI * 1.4);
+    const stadiumMat = new THREE.MeshStandardMaterial({ color: 0x9f1239, side: THREE.BackSide, roughness: 0.8 });
+    const stadium = new THREE.Mesh(stadiumGeo, stadiumMat);
+    stadium.position.set(0, 3.5, -12);
+    scene.add(stadium);
+
+    // Stadium upper tier trim
+    const trimGeo = new THREE.TorusGeometry(18.1, 0.4, 8, 32, Math.PI * 1.4);
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 });
+    const trim = new THREE.Mesh(trimGeo, trimMat);
+    trim.rotation.x = Math.PI / 2;
+    trim.position.set(0, 8.0, -12);
+    scene.add(trim);
+
+    // Floodlight tower in distance
+    const lightTower = new THREE.Group();
+    const lightBox = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 1.8, 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x475569 })
+    );
+    lightBox.position.set(0, 9.5, -13.5);
+    lightTower.add(lightBox);
+    // Yellow floodlight bulbs
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 5; c++) {
+        const bulb = new THREE.Mesh(
+          new THREE.CircleGeometry(0.18, 12),
+          new THREE.MeshBasicMaterial({ color: 0xfef08a })
+        );
+        bulb.position.set(-1.1 + c * 0.55, 9.8 - r * 0.6, -13.3);
+        lightTower.add(bulb);
+      }
+    }
+    scene.add(lightTower);
+
+    // Bright Green Pitch / Grass
+    const pitchGeo = new THREE.PlaneGeometry(36, 40);
+    const pitchMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.6 });
     const pitch = new THREE.Mesh(pitchGeo, pitchMat);
     pitch.rotation.x = -Math.PI / 2;
     scene.add(pitch);
 
-    // Goal Post Structure
+    // Pitch Line Markings (Penalty box & penalty arc circle)
+    const penArcGeo = new THREE.RingGeometry(3.6, 3.75, 48);
+    const penArcMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const penArc = new THREE.Mesh(penArcGeo, penArcMat);
+    penArc.rotation.x = -Math.PI / 2;
+    penArc.position.set(0, 0.02, -5.2);
+    scene.add(penArc);
+
+    const penBoxLine = new THREE.Mesh(
+      new THREE.PlaneGeometry(10.5, 0.15),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    penBoxLine.rotation.x = -Math.PI / 2;
+    penBoxLine.position.set(0, 0.02, -4.5);
+    scene.add(penBoxLine);
+
+    // Goal Post Structure (white with black accent joints as in screenshot)
     const goalMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-    const postGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.6, 16);
+    const jointMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+
+    const postGeo = new THREE.CylinderGeometry(0.09, 0.09, 2.7, 16);
     const postLeft = new THREE.Mesh(postGeo, goalMat);
-    postLeft.position.set(-2.8, 1.3, -10);
+    postLeft.position.set(-2.8, 1.35, -10);
     scene.add(postLeft);
 
     const postRight = new THREE.Mesh(postGeo, goalMat);
-    postRight.position.set(2.8, 1.3, -10);
+    postRight.position.set(2.8, 1.35, -10);
     scene.add(postRight);
 
-    const crossbarGeo = new THREE.CylinderGeometry(0.08, 0.08, 5.76, 16);
+    const crossbarGeo = new THREE.CylinderGeometry(0.09, 0.09, 5.78, 16);
     const crossbar = new THREE.Mesh(crossbarGeo, goalMat);
     crossbar.rotation.z = Math.PI / 2;
-    crossbar.position.set(0, 2.6, -10);
+    crossbar.position.set(0, 2.7, -10);
     scene.add(crossbar);
 
+    // Corner connector brackets
+    const bracketGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.35, 16);
+    const bracketL = new THREE.Mesh(bracketGeo, jointMat);
+    bracketL.position.set(-2.8, 2.65, -10);
+    scene.add(bracketL);
+    const bracketR = new THREE.Mesh(bracketGeo, jointMat);
+    bracketR.position.set(2.8, 2.65, -10);
+    scene.add(bracketR);
+
+    // Goal Bottom Base Frame
+    const baseL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.0, 16), goalMat);
+    baseL.rotation.x = Math.PI / 2;
+    baseL.position.set(-2.8, 0.08, -11);
+    scene.add(baseL);
+    const baseR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.0, 16), goalMat);
+    baseR.rotation.x = Math.PI / 2;
+    baseR.position.set(2.8, 0.08, -11);
+    scene.add(baseR);
+
     // Net
-    const netGeo = new THREE.BoxGeometry(5.6, 2.5, 1.5);
-    const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.4 });
+    const netGeo = new THREE.BoxGeometry(5.6, 2.6, 2.0);
+    const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.35 });
     const net = new THREE.Mesh(netGeo, netMat);
-    net.position.set(0, 1.3, -10.8);
+    net.position.set(0, 1.35, -11.0);
     scene.add(net);
 
     // Goalkeeper
     const keeperGroup = new THREE.Group();
-    // Body
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b });
-    const keeperBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 1.2, 12), bodyMat);
-    keeperBody.position.y = 1.0;
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x8d5524 });
+    const keeperJacketMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.4, roughness: 0.3 }); // sleek jacket
+    const keeperPantsMat = new THREE.MeshStandardMaterial({ color: 0xffffff }); // white pants
+    const keffiyehMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc });
+
+    // Torso (Jacket)
+    const keeperBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 1.15, 16), keeperJacketMat);
+    keeperBody.position.y = 1.25;
     keeperGroup.add(keeperBody);
+
     // Head
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-    const keeperHead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), headMat);
-    keeperHead.position.y = 1.8;
+    const keeperHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), headMat);
+    keeperHead.position.y = 2.05;
     keeperGroup.add(keeperHead);
-    // Arms
-    const armMat = new THREE.MeshStandardMaterial({ color: 0x10b981 });
-    const keeperArmL = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 0.15), armMat);
-    keeperArmL.position.set(-0.5, 1.3, 0);
+
+    // Headwear (Keffiyeh / Shemagh inspired styling as in reference)
+    const headdress = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.35, 16), keffiyehMat);
+    headdress.position.y = 2.22;
+    keeperGroup.add(headdress);
+
+    // White Pants & Legs
+    const legGeoL = new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12);
+    const legL = new THREE.Mesh(legGeoL, keeperPantsMat);
+    legL.position.set(-0.2, 0.45, 0);
+    keeperGroup.add(legL);
+
+    const legR = new THREE.Mesh(legGeoL, keeperPantsMat);
+    legR.position.set(0.2, 0.45, 0);
+    keeperGroup.add(legR);
+
+    // Arms in ready goalkeeper pose
+    const armMat = keeperJacketMat;
+    const keeperArmL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.7, 12), armMat);
+    keeperArmL.rotation.z = Math.PI / 3;
+    keeperArmL.position.set(-0.55, 1.45, 0);
     keeperGroup.add(keeperArmL);
-    const keeperArmR = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 0.15), armMat);
-    keeperArmR.position.set(0.5, 1.3, 0);
+
+    const keeperArmR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.7, 12), armMat);
+    keeperArmR.rotation.z = -Math.PI / 3;
+    keeperArmR.position.set(0.55, 1.45, 0);
     keeperGroup.add(keeperArmR);
 
     keeperGroup.position.set(0, 0, -9.8);
     scene.add(keeperGroup);
     keeperRef.current = keeperGroup;
 
-    // Ball
-    const ballGeo = new THREE.SphereGeometry(0.24, 20, 20);
+    // Classic Soccer Ball (with black hexagonal patches)
+    const ballGeo = new THREE.SphereGeometry(0.25, 24, 24);
     const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
     const ball = new THREE.Mesh(ballGeo, ballMat);
-    ball.position.set(0, 0.24, -2.5);
+    // Black patches
+    for (let i = 0; i < 6; i++) {
+      const patch = new THREE.Mesh(
+        new THREE.CircleGeometry(0.07, 6),
+        new THREE.MeshBasicMaterial({ color: 0x111827 })
+      );
+      const angle = (i * Math.PI) / 3;
+      patch.position.set(Math.cos(angle) * 0.22, Math.sin(angle) * 0.22, 0.12);
+      ball.add(patch);
+    }
+    ball.position.set(0, 0.25, -2.5);
     scene.add(ball);
     ballRef.current = ball;
 
-    // Kicker (Player / Opponent Avatar)
+    // Kicker (Avatar viewed from behind in blue jeans & dark beanie as in screenshot)
     const kickerGroup = new THREE.Group();
-    const kBodyMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
-    const kickerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 1.2, 12), kBodyMat);
-    kickerBody.position.y = 1.0;
+    const kickerBeanieMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+    const kickerJacket = new THREE.MeshStandardMaterial({ color: 0x334155 });
+    const jeansMat = new THREE.MeshStandardMaterial({ color: 0x60a5fa });
+
+    const kickerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 1.15, 12), kickerJacket);
+    kickerBody.position.y = 1.15;
     kickerGroup.add(kickerBody);
-    const kickerHead = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), headMat);
-    kickerHead.position.y = 1.8;
+
+    const kickerHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), headMat);
+    kickerHead.position.y = 1.95;
     kickerGroup.add(kickerHead);
-    kickerGroup.position.set(0.6, 0, -1.8);
+
+    const beanie = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.3, 16), kickerBeanieMat);
+    beanie.position.y = 2.15;
+    kickerGroup.add(beanie);
+
+    // Jeans
+    const kLegL = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12), jeansMat);
+    kLegL.position.set(-0.18, 0.45, 0);
+    kickerGroup.add(kLegL);
+
+    const kLegR = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12), jeansMat);
+    kLegR.position.set(0.18, 0.45, 0);
+    kickerGroup.add(kLegR);
+
+    kickerGroup.position.set(0.5, 0, -1.8);
     scene.add(kickerGroup);
     kickerRef.current = kickerGroup;
   }, []);
@@ -184,12 +308,12 @@ export default function PenaltyScreen() {
     const height = container.clientHeight || 560;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0c1427);
+    scene.background = new THREE.Color(0x38bdf8); // Bright blue sky as in screenshot
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 100);
-    camera.position.set(0, 2.2, 3.2);
-    camera.lookAt(0, 1.4, -9.8);
+    const camera = new THREE.PerspectiveCamera(54, width / height, 0.1, 100);
+    camera.position.set(0, 2.1, 3.5);
+    camera.lookAt(0, 1.45, -9.8);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -199,10 +323,10 @@ export default function PenaltyScreen() {
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x1f2937, 0.8);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x1e3a8a, 0.9);
     scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.4);
-    dir.position.set(5, 12, 6);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+    dir.position.set(6, 14, 6);
     scene.add(dir);
 
     buildScene(scene);

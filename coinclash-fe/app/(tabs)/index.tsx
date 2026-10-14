@@ -295,12 +295,21 @@ export default function HomeScreen() {
                 style={s.gameCard}
                 onPress={() => router.push({ pathname: `/game/${game.id}` as any, params: { stake: '10' } })}
               >
-                <View style={s.gameCardImageWrapper}>
-                  <Image
-                    source={GAME_IMAGES[game.id]}
-                    style={s.gameCardImage}
-                    resizeMode="cover"
-                  />
+                <View style={[s.gameCardImageWrapper, { backgroundColor: game.color + '20' }]}>
+                  {GAME_IMAGES[game.id] ? (
+                    <Image
+                      source={GAME_IMAGES[game.id]}
+                      style={s.gameCardImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: game.color + '15' }}>
+                      <Text style={{ fontSize: 32 }}>
+                        {game.id === 'archery' ? '🎯' : game.id === 'basketball' ? '🏀' : game.id === 'penalty' ? '⚽' : game.id === 'sumo' ? '🥋' : '💍'}
+                      </Text>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: game.color, marginTop: 4 }}>3D GAME</Text>
+                    </View>
+                  )}
                   <LinearGradient
                     colors={['transparent', 'rgba(11, 7, 26, 0.95)']}
                     style={s.gameCardImageOverlay}

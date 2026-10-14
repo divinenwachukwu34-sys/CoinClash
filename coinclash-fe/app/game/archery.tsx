@@ -291,10 +291,19 @@ export default function ArcheryScreen() {
       scene.add(line);
     }
 
-    // 3D Target placed 12 units away (Z = -6)
-    const target = createTarget();
-    target.position.set(0, 0, -6);
-    scene.add(target);
+    // 2x2 Grid of 4 Archery Targets as in reference screenshot
+    const tPositions = [
+      { x: -1.4, y: 1.0 }, // Top-Left
+      { x: 1.4, y: 1.0 },  // Top-Right
+      { x: -1.4, y: -1.4 }, // Bottom-Left
+      { x: 1.4, y: -1.4 },  // Bottom-Right
+    ];
+
+    tPositions.forEach((pos) => {
+      const target = createTarget();
+      target.position.set(pos.x, pos.y, -6);
+      scene.add(target);
+    });
 
     // Bow placed near player view
     const bow = createBow();
@@ -559,17 +568,17 @@ export default function ArcheryScreen() {
     },
     crosshairContainer: {
       position: 'absolute',
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      borderWidth: 2,
-      borderColor: isAiming ? colors.primary : 'rgba(255,255,255,0.4)',
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      borderWidth: 2.5,
+      borderColor: '#ef4444', // Bright red tactical reticle as in reference screenshot
       alignItems: 'center',
       justifyContent: 'center',
       pointerEvents: 'none',
       zIndex: 5,
     },
-    crosshairDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.gold },
+    crosshairDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' },
     feedbackBanner: {
       position: 'absolute',
       bottom: 120,

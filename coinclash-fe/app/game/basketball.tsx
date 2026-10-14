@@ -153,96 +153,79 @@ export default function BasketballScreen() {
     }, 600);
   }, [matchState.status, matchState.roomId, submitFinalScore, finish]);
 
-  // Create court, hoop, backboard
-  const buildScene = useCallback((scene: THREE.Scene) => {
-    // Court floor
-    const floorGeo = new THREE.PlaneGeometry(14, 26);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0xC68642, roughness: 0.7 });
+    // Dark Chalkboard / Arena Back Wall as in reference screenshot
+    const wallGeo = new THREE.PlaneGeometry(30, 24);
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e242b, roughness: 0.9 });
+    const wall = new THREE.Mesh(wallGeo, wallMat);
+    wall.position.set(0, 5, -12.5);
+    scene.add(wall);
+
+    // Hardwood Floor at bottom foreground (as in screenshot)
+    const floorGeo = new THREE.PlaneGeometry(16, 12);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, -1.2, 0);
     scene.add(floor);
 
-    // Court lines
-    const paintLines = (color: number, geom: THREE.PlaneGeometry, x: number, y: number, z: number, ry = 0) => {
-      const m = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color }));
-      m.rotation.x = -Math.PI / 2;
-      m.rotation.z = ry;
-      m.position.set(x, y, z);
-      scene.add(m);
+    // Primary Hoop (Top-Right as in screenshot)
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.3 }); // Red rim
+    const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.75 });
+
+    const rimGeo = new THREE.TorusGeometry(0.55, 0.04, 12, 32);
+    const rim1 = new THREE.Mesh(rimGeo, rimMat);
+    rim1.rotation.x = Math.PI / 2;
+    rim1.position.set(1.4, 3.6, -8.0);
+    scene.add(rim1);
+    rimRef.current = rim1;
+
+    const netGeo = new THREE.CylinderGeometry(0.55, 0.35, 1.1, 16, 3, true);
+    const net1 = new THREE.Mesh(netGeo, netMat);
+    net1.position.set(1.4, 3.05, -8.0);
+    scene.add(net1);
+
+    // Secondary Hoop (Lower-Left as in screenshot)
+    const rim2 = new THREE.Mesh(rimGeo, rimMat);
+    rim2.rotation.x = Math.PI / 2;
+    rim2.position.set(-1.3, 1.2, -7.0);
+    scene.add(rim2);
+
+    const net2 = new THREE.Mesh(netGeo, netMat);
+    net2.position.set(-1.3, 0.65, -7.0);
+    scene.add(net2);
+
+    // Foreground Stack of Basketballs (matching the bottom ball rack in the screenshot)
+    const ballGeo = new THREE.SphereGeometry(0.65, 24, 24);
+    const ballMat = new THREE.MeshStandardMaterial({ color: 0xe85d04, roughness: 0.65 });
+
+    const createRackBall = (x: number, y: number, z: number) => {
+      const b = new THREE.Mesh(ballGeo, ballMat);
+      // Seam ring
+      const seam = new THREE.Mesh(
+        new THREE.TorusGeometry(0.652, 0.015, 8, 32),
+        new THREE.MeshBasicMaterial({ color: 0x111827 })
+      );
+      b.add(seam);
+      b.position.set(x, y, z);
+      scene.add(b);
+      return b;
     };
-    // Key (paint area)
-    paintLines(0xffffff, new THREE.PlaneGeometry(4.9, 5.8), 0, 0.001, -9.5);
-    // 3-point arc approximated as a wide strip
-    const arcGeo = new THREE.RingGeometry(5.8, 6.1, 48, 1, Math.PI * 0.6, Math.PI * 1.8);
-    const arcM = new THREE.Mesh(arcGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
-    arcM.rotation.x = -Math.PI / 2;
-    arcM.position.set(0, 0.001, -10);
-    scene.add(arcM);
 
-    // Backboard
-    const bbGeo = new THREE.BoxGeometry(1.83, 1.07, 0.05);
-    const bbMat = new THREE.MeshStandardMaterial({ color: 0xCCE0FF, transparent: true, opacity: 0.75 });
-    const bb = new THREE.Mesh(bbGeo, bbMat);
-    bb.position.set(0, 3.48, -12.2);
-    scene.add(bb);
+    createRackBall(-1.8, -0.6, 1.8);
+    createRackBall(-0.6, -0.5, 2.2);
+    createRackBall(1.1, -0.5, 2.0);
+    createRackBall(2.0, -0.6, 1.6);
 
-    // Backboard outline
-    const bbFrame = new THREE.LineSegments(
-      new THREE.EdgesGeometry(bbGeo),
-      new THREE.LineBasicMaterial({ color: 0xFFFFFF })
+    // Active Shooting Ball (in flight / ready to shoot)
+    const activeBall = new THREE.Mesh(new THREE.SphereGeometry(0.48, 24, 24), ballMat);
+    const activeSeam = new THREE.Mesh(
+      new THREE.TorusGeometry(0.482, 0.012, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0x111827 })
     );
-    bbFrame.position.copy(bb.position);
-    scene.add(bbFrame);
-
-    // Backboard support pole
-    const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 4, 8);
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0xAAAAAA, metalness: 0.7 });
-    const pole = new THREE.Mesh(poleGeo, poleMat);
-    pole.position.set(0, 1.5, -12.6);
-    scene.add(pole);
-
-    // Rim
-    const rimGeo = new THREE.TorusGeometry(0.225, 0.02, 8, 32);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0xFF6B00, metalness: 0.5 });
-    const rim = new THREE.Mesh(rimGeo, rimMat);
-    rim.rotation.x = Math.PI / 2;
-    rim.position.set(0, 3.05, -11.8);
-    scene.add(rim);
-    rimRef.current = rim;
-
-    // Net (simple cylinder wireframe approximation)
-    const netGeo = new THREE.CylinderGeometry(0.225, 0.16, 0.45, 12, 1, true);
-    const netMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, wireframe: true, transparent: true, opacity: 0.6 });
-    const net = new THREE.Mesh(netGeo, netMat);
-    net.position.set(0, 2.82, -11.8);
-    scene.add(net);
-
-    // Crowd stand (colourful block)
-    const standGeo = new THREE.BoxGeometry(16, 6, 0.5);
-    const standMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e });
-    const stand = new THREE.Mesh(standGeo, standMat);
-    stand.position.set(0, 3, -14);
-    scene.add(stand);
-
-    // Basketball
-    const ballGeo = new THREE.SphereGeometry(0.24, 20, 20);
-    const ballMat = new THREE.MeshStandardMaterial({ color: 0xE8761A, roughness: 0.7 });
-    const ball = new THREE.Mesh(ballGeo, ballMat);
-    // Seam lines
-    const seam1 = new THREE.Mesh(
-      new THREE.TorusGeometry(0.242, 0.008, 6, 32),
-      new THREE.MeshStandardMaterial({ color: 0x333333 })
-    );
-    seam1.rotation.y = Math.PI / 2;
-    ball.add(seam1);
-    const seam2 = new THREE.Mesh(
-      new THREE.TorusGeometry(0.242, 0.008, 6, 32),
-      new THREE.MeshStandardMaterial({ color: 0x333333 })
-    );
-    ball.add(seam2);
-    ball.position.set(0, 0.24, 5.5);
-    scene.add(ball);
-    ballRef.current = ball;
+    activeBall.add(activeSeam);
+    activeBall.position.set(0, 0.8, -3.0);
+    scene.add(activeBall);
+    ballRef.current = activeBall;
   }, []);
 
   // 6. Setup Three.js scene

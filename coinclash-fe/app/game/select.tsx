@@ -78,18 +78,25 @@ function GameCard({
           height: 90,
           borderRadius: 14,
           overflow: 'hidden',
-          backgroundColor: game.color + '20',
+          backgroundColor: game.color + '25',
           borderWidth: 1.5,
-          borderColor: game.color + '40',
+          borderColor: game.color + '50',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Image
-          source={GAME_IMAGES[game.id]}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-        />
+        {GAME_IMAGES[game.id] ? (
+          <Image
+            source={GAME_IMAGES[game.id]}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <Ionicons name={game.icon} size={38} color={game.color} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: game.color, letterSpacing: 1 }}>3D ARCADE</Text>
+          </View>
+        )}
       </View>
 
       <View style={{ gap: 4 }}>

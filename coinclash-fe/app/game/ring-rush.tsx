@@ -14,8 +14,8 @@ import * as THREE from 'three';
 const TOTAL_PEGS = 5;
 const PEG_SPACING = 1.4;
 
-// Colors for the puzzle rings
-const RING_COLORS = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6];
+// Authentic pastel rings matching reference: Hot Pink, Bright Yellow, Cyan Blue, Soft Violet
+const RING_COLORS = [0xf43f5e, 0xfacc15, 0x38bdf8, 0xa855f7, 0xf43f5e];
 
 export default function RingRushScreen() {
   const colors = useColors();
@@ -118,18 +118,18 @@ export default function RingRushScreen() {
       stacks.forEach((stack, pegIdx) => {
         const pegX = (pegIdx - 2) * PEG_SPACING;
         stack.forEach((ringId, heightIdx) => {
-          const ringGeo = new THREE.TorusGeometry(0.38, 0.1, 16, 32);
+          const ringGeo = new THREE.TorusGeometry(0.42, 0.16, 20, 36);
           const ringMat = new THREE.MeshStandardMaterial({
             color: RING_COLORS[ringId],
-            roughness: 0.3,
-            metalness: 0.2,
+            roughness: 0.25,
+            metalness: 0.1,
           });
           const ringMesh = new THREE.Mesh(ringGeo, ringMat);
           ringMesh.rotation.x = Math.PI / 2;
 
           // Lift selected top ring on selected peg
           const isSelectedTop = selected === pegIdx && heightIdx === stack.length - 1;
-          const yPos = isSelectedTop ? 2.5 : 0.3 + heightIdx * 0.25;
+          const yPos = isSelectedTop ? 3.0 : 0.45 + heightIdx * 0.38;
 
           ringMesh.position.set(pegX, yPos, 0);
           group.add(ringMesh);
@@ -145,20 +145,36 @@ export default function RingRushScreen() {
 
   // Build Scene Base and Pegs
   const buildScene = useCallback((scene: THREE.Scene) => {
-    // Wooden Stand Base
-    const baseGeo = new THREE.BoxGeometry(7.2, 0.35, 1.8);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.6 });
+    // Natural Wooden Stand Base with rounded bevel
+    const baseGeo = new THREE.BoxGeometry(7.8, 0.9, 2.2);
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.5 }); // Golden wood as in screenshot
     const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.set(0, 0, 0);
+    base.position.set(0, -0.2, 0);
     scene.add(base);
 
-    // 5 Pegs / Sticks
-    const pegGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.2, 16);
-    const pegMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.5 });
+    // Front wood chamfer strip
+    const trimGeo = new THREE.BoxGeometry(7.8, 0.2, 0.1);
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xc89656, roughness: 0.4 });
+    const trim = new THREE.Mesh(trimGeo, trimMat);
+    trim.position.set(0, 0.2, 1.11);
+    scene.add(trim);
+
+    // 5 Pegs / Sticks (Natural light wood finish)
+    const pegMat = new THREE.MeshStandardMaterial({ color: 0xd2a679, roughness: 0.4 });
     for (let i = 0; i < TOTAL_PEGS; i++) {
+      // Middle peg (index 2) is taller as in screenshot
+      const isMiddle = i === 2;
+      const height = isMiddle ? 3.4 : 2.5;
+      const pegGeo = new THREE.CylinderGeometry(0.09, 0.09, height, 20);
       const peg = new THREE.Mesh(pegGeo, pegMat);
-      peg.position.set((i - 2) * PEG_SPACING, 1.1, 0);
+      peg.position.set((i - 2) * PEG_SPACING, height / 2 + 0.25, 0);
       scene.add(peg);
+
+      // Rounded peg tip
+      const tipGeo = new THREE.SphereGeometry(0.09, 16, 16);
+      const tip = new THREE.Mesh(tipGeo, pegMat);
+      tip.position.set((i - 2) * PEG_SPACING, height + 0.25, 0);
+      scene.add(tip);
     }
 
     // Rings container group
