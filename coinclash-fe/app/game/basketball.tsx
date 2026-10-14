@@ -18,6 +18,7 @@ export default function BasketballScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const isPractice = stake === 0;
@@ -113,9 +114,7 @@ export default function BasketballScreen() {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       const res = matchState.gameResult;
-      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'pts', {
-        playerScore: res.playerScore,
-        aiScore: res.opponentScore,
+      finish(res.won, res.playerScore, res.opponentScore, 'pts', {
         playerTimeMs: res.playerTimeMs,
         aiTimeMs: res.opponentTimeMs,
       });
@@ -143,9 +142,7 @@ export default function BasketballScreen() {
         submitFinalScore(score, totalTime, `${score}/${TOTAL_SHOTS * 3}`);
       } else {
         const won = score > aiScore.current || (score === aiScore.current && totalTime < aiTime.current);
-        finish(won, totalTime, aiTime.current, 'pts', {
-          playerScore: score,
-          aiScore: aiScore.current,
+        finish(won, score, aiScore.current, 'pts', {
           playerTimeMs: totalTime,
           aiTimeMs: aiTime.current,
         });
@@ -153,6 +150,8 @@ export default function BasketballScreen() {
     }, 600);
   }, [matchState.status, matchState.roomId, submitFinalScore, finish]);
 
+  // Create court, hoop, backboard
+  const buildScene = useCallback((scene: THREE.Scene) => {
     // Dark Chalkboard / Arena Back Wall as in reference screenshot
     const wallGeo = new THREE.PlaneGeometry(30, 24);
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x1e242b, roughness: 0.9 });
@@ -484,12 +483,13 @@ export default function BasketballScreen() {
   return (
     <View style={s.container}>
       <MatchmakingModal
-        visible={matchState.status === 'searching' || matchState.status === 'matched'}
-        searchSeconds={searchSeconds}
-        opponentUsername={matchState.opponentUsername}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🏀 Basketball 3D"
         stake={stake}
-        gameName="Basketball Shootout 3D"
-        isPractice={isPractice}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => { cancelSearch(); router.back(); }}
         onPlayBot={switchToBotMatch}
       />
