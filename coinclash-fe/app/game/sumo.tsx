@@ -17,6 +17,7 @@ export default function SumoScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const isPractice = stake === 0;
@@ -92,9 +93,7 @@ export default function SumoScreen() {
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
       const res = matchState.gameResult;
-      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'pts', {
-        playerScore: res.playerScore,
-        aiScore: res.opponentScore,
+      finish(res.won, res.playerScore, res.opponentScore, 'pts', {
         playerTimeMs: res.playerTimeMs,
         aiTimeMs: res.opponentTimeMs,
       });
@@ -310,9 +309,7 @@ export default function SumoScreen() {
       if (matchState.status === 'playing' && matchState.roomId) {
         submitFinalScore(finalScore, totalTime, winSide === 'player' ? 'RING_OUT' : 'DEFEAT');
       } else {
-        finish(winSide === 'player', totalTime, totalTime + 2000, 'pts', {
-          playerScore: finalScore,
-          aiScore: winSide === 'player' ? 0 : 100,
+        finish(winSide === 'player', finalScore, winSide === 'player' ? 0 : 100, 'pts', {
           playerTimeMs: totalTime,
           aiTimeMs: totalTime + 2000,
         });
@@ -399,12 +396,13 @@ export default function SumoScreen() {
   return (
     <View style={s.container}>
       <MatchmakingModal
-        visible={matchState.status === 'searching' || matchState.status === 'matched'}
-        searchSeconds={searchSeconds}
-        opponentUsername={matchState.opponentUsername}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🥋 Sumo Clash 3D"
         stake={stake}
-        gameName="Sumo Clash 3D"
-        isPractice={isPractice}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => {
           cancelSearch();
           router.back();

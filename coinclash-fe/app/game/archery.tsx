@@ -117,9 +117,7 @@ export default function ArcheryScreen() {
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
       const res = matchState.gameResult;
-      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'pts', {
-        playerScore: res.playerScore,
-        aiScore: res.opponentScore,
+      finish(res.won, res.playerScore, res.opponentScore, 'pts', {
         playerTimeMs: res.playerTimeMs,
         aiTimeMs: res.opponentTimeMs,
       });
@@ -456,9 +454,7 @@ export default function ArcheryScreen() {
             } else {
               // Practice / Offline bot resolution
               const won = newScore > aiScore.current || (newScore === aiScore.current && totalTime < aiTime.current);
-              finish(won, totalTime, aiTime.current, 'pts', {
-                playerScore: newScore,
-                aiScore: aiScore.current,
+              finish(won, newScore, aiScore.current, 'pts', {
                 playerTimeMs: totalTime,
                 aiTimeMs: aiTime.current,
               });
@@ -603,12 +599,13 @@ export default function ArcheryScreen() {
     <View style={s.container}>
       {/* Matchmaking Modal */}
       <MatchmakingModal
-        visible={matchState.status === 'searching' || matchState.status === 'matched'}
-        searchSeconds={searchSeconds}
-        opponentUsername={matchState.opponentUsername}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="🎯 Archery Target Rush"
         stake={stake}
-        gameName="Archery Challenge 3D"
-        isPractice={isPractice}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => {
           cancelSearch();
           router.back();
@@ -619,27 +616,45 @@ export default function ArcheryScreen() {
       {/* Top Header */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.foreground} />
+          <Ionicons name="close" size={28} color="#FFFFFF" />
         </Pressable>
-        <Text style={s.headerTitle}>🎯 Archery 3D</Text>
+        <Text style={s.headerTitle}>Archery Target Rush</Text>
         <View style={s.scorePill}>
-          <Text style={{ fontSize: 13, color: colors.mutedForeground }}>Score</Text>
-          <Text style={s.scoreVal}>{playerScore}</Text>
+          <Text style={s.scoreVal}>{playerScore} PTS</Text>
         </View>
       </View>
 
-      {/* HUD Info: Wind & Arrows Left */}
-      <View style={s.hudOverlay}>
-        <View style={s.windBox}>
-          <Text style={s.windText}>💨 Wind: {wind.x > 0 ? `+${wind.x}` : wind.x} X | {wind.y > 0 ? `+${wind.y}` : wind.y} Y</Text>
-          <Text style={{ fontSize: 10, color: colors.mutedForeground }}>Aim offset accounts for wind</Text>
-        </View>
-
-        <View style={s.arrowsLeftRow}>
-          {Array.from({ length: TOTAL_ARROWS }).map((_, i) => (
-            <View key={i} style={[s.arrowPip, i < arrowsLeft && s.arrowPipActive]} />
-          ))}
-        </View>
+      {/* Top 4 Target Indicator Cards matching Snapchat reference */}
+      <View style={{
+        position: 'absolute',
+        top: topPad + 60,
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        zIndex: 10,
+        pointerEvents: 'none',
+      }}>
+        {[0, 1, 2, 3].map((idx) => {
+          const isCleared = (TOTAL_ARROWS - arrowsLeft) > idx;
+          return (
+            <View
+              key={idx}
+              style={{
+                width: 68,
+                height: 96,
+                borderRadius: 14,
+                backgroundColor: isCleared ? 'rgba(34, 197, 94, 0.25)' : 'rgba(30, 41, 59, 0.75)',
+                borderWidth: 2,
+                borderColor: isCleared ? '#22c55e' : 'rgba(255, 255, 255, 0.2)',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>{isCleared ? '🎯' : ''}</Text>
+            </View>
+          );
+        })}
       </View>
 
       {/* 3D WebGL Canvas Layer */}
@@ -664,10 +679,40 @@ export default function ArcheryScreen() {
         </View>
       )}
 
-      {/* Bottom Instructions */}
-      <View style={s.bottomGuide}>
-        <Text style={s.guideText}>
-          {isAiming ? '🎯 Aiming... Release to shoot!' : '👆 Drag on screen to aim, release to shoot'}
+      {/* Bottom Circular Target Trigger matching Snapchat camera button */}
+      <View style={{
+        position: 'absolute',
+        bottom: insets.bottom + 20,
+        alignSelf: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+      }}>
+        <Pressable
+          onPress={fireArrow}
+          style={{
+            width: 76,
+            height: 76,
+            borderRadius: 38,
+            backgroundColor: '#0f172a',
+            borderWidth: 4,
+            borderColor: '#FFFFFF',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.5,
+            shadowRadius: 10,
+            elevation: 8,
+          }}
+        >
+          {/* Target concentric mini-rings */}
+          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#0284c7', alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#facc15' }} />
+            </View>
+          </View>
+        </Pressable>
+        <Text style={{ marginTop: 8, fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'Inter_500Medium' }}>
+          TAP TO SHOOT
         </Text>
       </View>
     </View>

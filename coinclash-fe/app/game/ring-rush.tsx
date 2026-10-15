@@ -21,6 +21,7 @@ export default function RingRushScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const isPractice = stake === 0;
@@ -94,9 +95,7 @@ export default function RingRushScreen() {
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
       const res = matchState.gameResult;
-      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'moves', {
-        playerScore: res.playerScore,
-        aiScore: res.opponentScore,
+      finish(res.won, res.playerScore, res.opponentScore, 'pts', {
         playerTimeMs: res.playerTimeMs,
         aiTimeMs: res.opponentTimeMs,
       });
@@ -289,9 +288,7 @@ export default function RingRushScreen() {
             submitFinalScore(finalScore, totalTime, `${newMoves} moves`);
           } else {
             const won = totalTime < aiTime.current;
-            finish(won, totalTime, aiTime.current, 'pts', {
-              playerScore: finalScore,
-              aiScore: 80,
+            finish(won, finalScore, 80, 'pts', {
               playerTimeMs: totalTime,
               aiTimeMs: aiTime.current,
             });
@@ -376,12 +373,13 @@ export default function RingRushScreen() {
   return (
     <View style={s.container}>
       <MatchmakingModal
-        visible={matchState.status === 'searching' || matchState.status === 'matched'}
-        searchSeconds={searchSeconds}
-        opponentUsername={matchState.opponentUsername}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="💍 Ring Rush 3D"
         stake={stake}
-        gameName="Ring Rush 3D"
-        isPractice={isPractice}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => {
           cancelSearch();
           router.back();
@@ -394,15 +392,55 @@ export default function RingRushScreen() {
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </Pressable>
-        <Text style={s.title}>💍 Ring Rush 3D</Text>
+        <Text style={s.title}>Ring Sort Puzzle</Text>
         <View style={s.scorePill}>
           <Text style={s.scoreVal}>{moves} MOVES</Text>
         </View>
       </View>
 
+      {/* Top Floating Oval Score Badge matching Snapchat screenshot */}
+      <View style={{
+        position: 'absolute',
+        top: topPad + 45,
+        alignSelf: 'center',
+        width: 44,
+        height: 52,
+        borderRadius: 22,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+        elevation: 6,
+        shadowColor: '#000',
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      }}>
+        <Text style={{ fontSize: 24, fontWeight: '900', color: '#000000' }}>{moves}</Text>
+      </View>
+
       {/* 3D WebGL Canvas */}
       <View style={s.canvasWrapper}>
         <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+
+        {/* BEST 25 Trophy Banner on wooden base matching screenshot */}
+        <View style={{
+          position: 'absolute',
+          bottom: insets.bottom + 115,
+          alignSelf: 'center',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          paddingHorizontal: 16,
+          paddingVertical: 6,
+          borderRadius: 16,
+          borderWidth: 1.5,
+          borderColor: '#deb887',
+          zIndex: 10,
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: '900', color: '#0284c7', letterSpacing: 1 }}>BEST 🏆</Text>
+          <Text style={{ fontSize: 18, fontWeight: '900', color: '#1e293b' }}>25</Text>
+        </View>
       </View>
 
       {/* Feedback Banner */}

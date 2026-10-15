@@ -11,8 +11,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as THREE from 'three';
 
-const TOTAL_SHOTS = 5;
-const SHOT_TIME = 8; // seconds per shot
+const MATCH_DURATION = 45; // 45-second arcade shootout matching Snapchat reference
 
 export default function BasketballScreen() {
   const colors = useColors();
@@ -39,9 +38,8 @@ export default function BasketballScreen() {
   const displayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [gameReady, setGameReady] = useState(false);
-  const [shotsLeft, setShotsLeft] = useState(TOTAL_SHOTS);
   const [playerScore, setPlayerScore] = useState(0);
-  const [shotTimer, setShotTimer] = useState(SHOT_TIME);
+  const [timeLeft, setTimeLeft] = useState(MATCH_DURATION);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isShooting, setIsShooting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -58,13 +56,12 @@ export default function BasketballScreen() {
   const animFrameRef = useRef<number | null>(null);
   const isFlyingRef = useRef(false);
   const startTimeRef = useRef(Date.now());
-  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const shotsLeftRef = useRef(TOTAL_SHOTS);
+  const matchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const playerScoreRef = useRef(0);
 
   // AI score
-  const aiScore = useRef(Math.floor(6 + Math.random() * 10));
-  const aiTime = useRef(TOTAL_SHOTS * 5000 + Math.random() * 5000);
+  const aiScore = useRef(Math.floor(18 + Math.random() * 24));
+  const aiTime = useRef(MATCH_DURATION * 1000);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -82,37 +79,36 @@ export default function BasketballScreen() {
     }
   }, [matchState.status, sendGameStart]);
 
-  // 3. Game begins
+  // 3. Game begins (starts 45s match countdown)
   useEffect(() => {
     if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
       startTimeRef.current = Date.now();
-      setShotsLeft(TOTAL_SHOTS);
-      shotsLeftRef.current = TOTAL_SHOTS;
-      setShotTimer(SHOT_TIME);
+      setTimeLeft(MATCH_DURATION);
+      playerScoreRef.current = 0;
+      setPlayerScore(0);
+
+      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
+      matchTimerRef.current = setInterval(() => {
+        setTimeLeft(t => {
+          if (t <= 1) {
+            if (matchTimerRef.current) clearInterval(matchTimerRef.current);
+            endGame();
+            return 0;
+          }
+          return t - 1;
+        });
+      }, 1000);
     }
+    return () => {
+      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
+    };
   }, [matchState.status]);
 
-  // 4. Per-shot countdown timer
-  useEffect(() => {
-    if (!gameReady) return;
-    timerIntervalRef.current = setInterval(() => {
-      setShotTimer(t => {
-        if (t <= 1) {
-          // Time's up for this shot — auto-miss
-          handleMiss();
-          return SHOT_TIME;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
-  }, [gameReady]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 5. Authoritative game-over (multiplayer)
+  // 4. Authoritative game-over (multiplayer)
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (matchTimerRef.current) clearInterval(matchTimerRef.current);
       const res = matchState.gameResult;
       finish(res.won, res.playerScore, res.opponentScore, 'pts', {
         playerTimeMs: res.playerTimeMs,
@@ -121,27 +117,15 @@ export default function BasketballScreen() {
     }
   }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
-  const handleMiss = useCallback(() => {
-    if (isFlyingRef.current) return;
-    const newShots = shotsLeftRef.current - 1;
-    shotsLeftRef.current = newShots;
-    setShotsLeft(newShots);
-    setShotTimer(SHOT_TIME);
-    setFeedback('MISS! 😬');
-    setTimeout(() => setFeedback(null), 900);
-
-    if (newShots <= 0) endGame();
-  }, []);
-
   const endGame = useCallback(() => {
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    if (matchTimerRef.current) clearInterval(matchTimerRef.current);
     const totalTime = Date.now() - startTimeRef.current;
     const score = playerScoreRef.current;
     setTimeout(() => {
       if (matchState.status === 'playing' && matchState.roomId) {
-        submitFinalScore(score, totalTime, `${score}/${TOTAL_SHOTS * 3}`);
+        submitFinalScore(score, totalTime, `${score} PTS`);
       } else {
-        const won = score > aiScore.current || (score === aiScore.current && totalTime < aiTime.current);
+        const won = score > aiScore.current;
         finish(won, score, aiScore.current, 'pts', {
           playerTimeMs: totalTime,
           aiTimeMs: aiTime.current,
@@ -287,97 +271,77 @@ export default function BasketballScreen() {
 
   // Shoot the ball
   const shootBall = useCallback((swipeDx: number, swipeDy: number) => {
-    if (isFlyingRef.current || !gameReady || shotsLeftRef.current <= 0) return;
+    if (isFlyingRef.current || !gameReady || timeLeft <= 0) return;
     const ball = ballRef.current;
     const scene = sceneRef.current;
     if (!ball || !scene) return;
 
     isFlyingRef.current = true;
     setIsShooting(true);
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Normalise swipe into shot power/direction
-    // swipeDy: negative means swiping upward (good) 
-    const power = Math.min(1.2, Math.max(0.4, -swipeDy / 140));
-    const lateralBias = swipeDx / 200; // slight left/right from horizontal swipe
+    const power = Math.min(1.3, Math.max(0.4, -swipeDy / 130));
+    const lateralBias = swipeDx / 180; // horizontal swipe offset
+
+    // Choose target hoop: if swiping right, aim for upper right hoop; if swiping left, aim for lower left hoop
+    const targetHoop = lateralBias >= 0
+      ? new THREE.Vector3(1.4, 3.6, -8.0) // Upper right hoop
+      : new THREE.Vector3(-1.3, 1.2, -7.0); // Lower left hoop
 
     const startPos = ball.position.clone();
-    const targetPos = new THREE.Vector3(lateralBias * 0.5, 3.05, -11.8); // hoop position
-    const flightDuration = 0.85;
+    const flightDuration = 0.75;
     const startFlight = performance.now();
 
-    // Whether this shot goes in depends on power accuracy (0.7–1.1 range for success)
-    const isGoodShot = power >= 0.68 && power <= 1.12 && Math.abs(lateralBias) < 0.7;
+    // Accuracy condition
+    const isGoodShot = power >= 0.65 && power <= 1.2;
 
     const animateBall = () => {
       const t = Math.min(1, (performance.now() - startFlight) / (flightDuration * 1000));
-      const pos = new THREE.Vector3().lerpVectors(startPos, targetPos, t);
+      const pos = new THREE.Vector3().lerpVectors(startPos, targetHoop, t);
       // Arc height
-      pos.y += Math.sin(t * Math.PI) * (3.5 * power);
+      pos.y += Math.sin(t * Math.PI) * (2.8 * power);
       ball.position.copy(pos);
       // Spin
-      ball.rotation.x -= 0.08;
+      ball.rotation.x -= 0.1;
 
       if (t < 1) {
         requestAnimationFrame(animateBall);
       } else {
-        // Result
-        const curShots = shotsLeftRef.current - 1;
-        shotsLeftRef.current = curShots;
-
         if (isGoodShot) {
-          const points = power > 0.98 ? 3 : 2;
+          const points = power > 1.0 ? 3 : 2;
           playerScoreRef.current += points;
           setPlayerScore(playerScoreRef.current);
-          setFeedback(points === 3 ? '🎯 SWISH! +3' : '🏀 BASKET! +2');
+          setFeedback(points === 3 ? '🎯 +3 SWISH!' : '🏀 +2 BASKET!');
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
           setFeedback('MISS! 😬');
-          // Bounce ball off rim
-          ball.position.set(targetPos.x + (Math.random() - 0.5) * 0.6, 2.7, -11.4);
+          ball.position.set(targetHoop.x + (Math.random() - 0.5) * 0.8, targetHoop.y - 0.4, targetHoop.z + 0.5);
         }
 
-        setShotsLeft(curShots);
-        setTimeout(() => setFeedback(null), 1000);
+        setTimeout(() => setFeedback(null), 800);
 
-        // Send progress
         if (matchState.status === 'playing' && matchState.roomId) {
-          sendProgress(TOTAL_SHOTS - curShots, playerScoreRef.current, Date.now() - startTimeRef.current);
+          sendProgress(playerScoreRef.current, playerScoreRef.current, Date.now() - startTimeRef.current);
         }
 
-        // Reset ball
+        // Fast reset for continuous rapid-fire shooting during 45s
         setTimeout(() => {
           if (ballRef.current) {
-            ballRef.current.position.set(0, 0.24, 5.5);
+            ballRef.current.position.set(0, 0.8, -3.0);
             ballRef.current.rotation.set(0, 0, 0);
           }
           isFlyingRef.current = false;
           setIsShooting(false);
-
-          if (curShots <= 0) {
-            endGame();
-          } else {
-            setShotTimer(SHOT_TIME);
-            timerIntervalRef.current = setInterval(() => {
-              setShotTimer(t => {
-                if (t <= 1) {
-                  handleMiss();
-                  return SHOT_TIME;
-                }
-                return t - 1;
-              });
-            }, 1000);
-          }
-        }, 700);
+        }, 350);
       }
     };
     requestAnimationFrame(animateBall);
-  }, [gameReady, matchState.status, matchState.roomId, sendProgress, endGame, handleMiss]);
+  }, [gameReady, matchState.status, matchState.roomId, sendProgress]);
 
   // Pointer/touch handlers
   const onPointerDown = (e: any) => {
-    if (!gameReady || isFlyingRef.current || shotsLeftRef.current <= 0) return;
+    if (!gameReady || isFlyingRef.current || timeLeft <= 0) return;
     const ne = e.nativeEvent || e;
     const x = ne.touches ? ne.touches[0].clientX : ne.clientX;
     const y = ne.touches ? ne.touches[0].clientY : ne.clientY;
@@ -506,16 +470,43 @@ export default function BasketballScreen() {
         </View>
       </View>
 
-      {/* HUD */}
-      <View style={s.hud}>
-        <View style={s.hudBox}>
-          <Text style={s.hudLabel}>SHOTS LEFT</Text>
-          <Text style={s.hudVal}>{shotsLeft}</Text>
-        </View>
-        <View style={s.hudBox}>
-          <Text style={s.hudLabel}>TIME</Text>
-          <Text style={[s.hudVal, { color: shotTimer <= 3 ? '#FF4444' : '#FFFFFF' }]}>{shotTimer}s</Text>
-        </View>
+      {/* Top Digital Timer Box matching Snapchat format */}
+      <View style={{
+        position: 'absolute',
+        top: topPad + 45,
+        alignSelf: 'center',
+        backgroundColor: '#1e242b',
+        borderWidth: 2,
+        borderColor: '#374151',
+        borderRadius: 14,
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        alignItems: 'center',
+        zIndex: 10,
+        elevation: 6,
+      }}>
+        <Text style={{ fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.7)', letterSpacing: 2 }}>TIME</Text>
+        <Text style={{ fontSize: 36, fontWeight: '900', color: '#FFFFFF', fontFamily: 'monospace' }}>{timeLeft}</Text>
+      </View>
+
+      {/* Red Points Banner on the right matching Snapchat format */}
+      <View style={{
+        position: 'absolute',
+        top: topPad + 180,
+        right: 0,
+        backgroundColor: '#dc2626',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderTopLeftRadius: 10,
+        borderBottomLeftRadius: 10,
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: 6,
+        zIndex: 10,
+        elevation: 6,
+      }}>
+        <Text style={{ fontSize: 26, fontWeight: '900', color: '#FFFFFF', fontFamily: 'Inter_700Bold' }}>{playerScore}</Text>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 }}>PTS</Text>
       </View>
 
       {/* 3D Canvas */}

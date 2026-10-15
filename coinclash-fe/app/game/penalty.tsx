@@ -18,6 +18,7 @@ export default function PenaltyScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
   const isPractice = stake === 0;
@@ -87,9 +88,7 @@ export default function PenaltyScreen() {
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
       const res = matchState.gameResult;
-      finish(res.won, res.playerTimeMs, res.opponentTimeMs, 'goals', {
-        playerScore: res.playerScore,
-        aiScore: res.opponentScore,
+      finish(res.won, res.playerScore, res.opponentScore, 'goals', {
         playerTimeMs: res.playerTimeMs,
         aiTimeMs: res.opponentTimeMs,
       });
@@ -458,9 +457,7 @@ export default function PenaltyScreen() {
                 submitFinalScore(pScore, totalTime, `${pScore}-${oScore}`);
               } else {
                 const won = pScore > oScore || (pScore === oScore && totalTime < 30000);
-                finish(won, totalTime, 30000, 'goals', {
-                  playerScore: pScore,
-                  aiScore: oScore,
+                finish(won, pScore, oScore, 'goals', {
                   playerTimeMs: totalTime,
                   aiTimeMs: 30000,
                 });
@@ -554,12 +551,13 @@ export default function PenaltyScreen() {
   return (
     <View style={s.container}>
       <MatchmakingModal
-        visible={matchState.status === 'searching' || matchState.status === 'matched'}
-        searchSeconds={searchSeconds}
-        opponentUsername={matchState.opponentUsername}
+        visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
+        gameTitle="⚽ Penalty Shootout 3D"
         stake={stake}
-        gameName="Penalty Shootout 3D"
-        isPractice={isPractice}
+        searchSeconds={searchSeconds}
+        playerUsername={user?.username || 'You'}
+        opponentUsername={matchState.opponentUsername || 'Challenger'}
+        isMatched={matchState.status === 'matched'}
         onCancel={() => {
           cancelSearch();
           router.back();
@@ -604,20 +602,71 @@ export default function PenaltyScreen() {
         </View>
       )}
 
-      {/* Controls */}
+      {/* Controls styled as circular arcade triggers matching Snapchat camera HUD */}
       <View style={s.controls}>
         <Text style={s.instruction}>
-          {role === 'kicker' ? '🎯 Choose your kick placement:' : '🧤 Choose dive direction to save:'}
+          {role === 'kicker' ? '⚽ TAP DIRECTION TO STRIKE:' : '🧤 TAP DIRECTION TO DIVE:'}
         </Text>
-        <View style={s.actionRow}>
-          <Pressable style={s.btn} onPress={() => handleAction('left')} disabled={animating}>
-            <Text style={s.btnText}>👈 LEFT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+          <Pressable
+            style={({ pressed }) => [{
+              width: 68,
+              height: 68,
+              borderRadius: 34,
+              backgroundColor: '#1e293b',
+              borderWidth: 3,
+              borderColor: '#38bdf8',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 4,
+            }, pressed && { transform: [{ scale: 0.94 }] }]}
+            onPress={() => handleAction('left')}
+            disabled={animating}
+          >
+            <Text style={{ fontSize: 26 }}>👈</Text>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', marginTop: 2 }}>LEFT</Text>
           </Pressable>
-          <Pressable style={s.btn} onPress={() => handleAction('center')} disabled={animating}>
-            <Text style={s.btnText}>🎯 CENTER</Text>
+
+          {/* Central primary trigger */}
+          <Pressable
+            style={({ pressed }) => [{
+              width: 82,
+              height: 82,
+              borderRadius: 41,
+              backgroundColor: '#2563eb',
+              borderWidth: 4,
+              borderColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 8,
+              shadowColor: '#2563eb',
+              shadowOpacity: 0.5,
+              shadowRadius: 10,
+            }, pressed && { transform: [{ scale: 0.94 }] }]}
+            onPress={() => handleAction('center')}
+            disabled={animating}
+          >
+            <Text style={{ fontSize: 32 }}>⚽</Text>
+            <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFFFFF', marginTop: 1 }}>CENTER</Text>
           </Pressable>
-          <Pressable style={s.btn} onPress={() => handleAction('right')} disabled={animating}>
-            <Text style={s.btnText}>RIGHT 👉</Text>
+
+          <Pressable
+            style={({ pressed }) => [{
+              width: 68,
+              height: 68,
+              borderRadius: 34,
+              backgroundColor: '#1e293b',
+              borderWidth: 3,
+              borderColor: '#38bdf8',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 4,
+            }, pressed && { transform: [{ scale: 0.94 }] }]}
+            onPress={() => handleAction('right')}
+            disabled={animating}
+          >
+            <Text style={{ fontSize: 26 }}>👉</Text>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', marginTop: 2 }}>RIGHT</Text>
           </Pressable>
         </View>
       </View>
