@@ -12,19 +12,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as THREE from 'three';
 
 const TOTAL_PEGS = 5;
-const PEG_SPACING = 1.4;
+const PEG_SPACING = 1.38;
 
-// Authentic pastel rings matching reference: Hot Pink, Bright Yellow, Cyan Blue, Soft Violet
-const RING_COLORS = [0xf43f5e, 0xfacc15, 0x38bdf8, 0xa855f7, 0xf43f5e];
+// Exact color palette matching Snapchat reference: Coral Pink, Sunshine Yellow, Cyan Blue, Royal Purple
+const RING_COLORS = [0xff4d79, 0xffd214, 0x22c1ee, 0x7c56b8];
 
 export default function RingRushScreen() {
-  const colors = useColors();
+  const _colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
-  const isPractice = stake === 0;
+  const _isPractice = stake === 0;
   const finish = useGameFinish(stake);
 
   const {
@@ -47,14 +47,13 @@ export default function RingRushScreen() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isWon, setIsWon] = useState(false);
 
-  // Puzzle State: Array of arrays representing stacks on each of the 5 pegs
-  // Target: Each peg i has exactly ring i (ordered 0, 1, 2, 3, 4)
+  // Initial stacks matching the colorful abacus challenge
   const [pegStacks, setPegStacks] = useState<number[][]>([
-    [2, 0],
-    [3],
-    [1],
-    [4],
-    [],
+    [2, 3, 2, 1, 0], // Peg 1
+    [3, 1, 2, 3, 1, 0], // Peg 2
+    [], // Peg 3 (Center taller peg starts empty)
+    [0, 0, 3, 2], // Peg 4
+    [2, 3, 1, 1], // Peg 5
   ]);
 
   // Three.js refs
@@ -67,9 +66,9 @@ export default function RingRushScreen() {
 
   const startTimeRef = useRef(Date.now());
   const movesRef = useRef(0);
-  const aiTime = useRef(24000 + Math.random() * 8000);
+  const aiTime = useRef(26000 + Math.random() * 8000);
 
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
+  const topPad = Platform.OS === 'web' ? 50 : insets.top;
 
   useEffect(() => {
     startSearching();
@@ -108,29 +107,42 @@ export default function RingRushScreen() {
       const group = ringsGroupRef.current;
       if (!group) return;
 
-      // Clear existing rings
       while (group.children.length > 0) {
         group.remove(group.children[0]);
       }
 
-      // Re-create rings
+      // Chunky Torus Geometry for authentic donut look
+      const ringGeo = new THREE.TorusGeometry(0.44, 0.18, 20, 36);
+
       stacks.forEach((stack, pegIdx) => {
         const pegX = (pegIdx - 2) * PEG_SPACING;
-        stack.forEach((ringId, heightIdx) => {
-          const ringGeo = new THREE.TorusGeometry(0.42, 0.16, 20, 36);
+        stack.forEach((ringColorIdx, heightIdx) => {
+          const color = RING_COLORS[ringColorIdx % RING_COLORS.length];
           const ringMat = new THREE.MeshStandardMaterial({
-            color: RING_COLORS[ringId],
-            roughness: 0.25,
-            metalness: 0.1,
+            color,
+            roughness: 0.28,
+            metalness: 0.08,
           });
           const ringMesh = new THREE.Mesh(ringGeo, ringMat);
           ringMesh.rotation.x = Math.PI / 2;
 
           // Lift selected top ring on selected peg
           const isSelectedTop = selected === pegIdx && heightIdx === stack.length - 1;
-          const yPos = isSelectedTop ? 3.0 : 0.45 + heightIdx * 0.38;
+          const yPos = isSelectedTop ? 3.4 : 0.42 + heightIdx * 0.38;
 
           ringMesh.position.set(pegX, yPos, 0);
+
+          // Contact shadow under ring
+          if (!isSelectedTop && heightIdx === 0) {
+            const shadow = new THREE.Mesh(
+              new THREE.CircleGeometry(0.48, 16),
+              new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 })
+            );
+            shadow.rotation.x = -Math.PI / 2;
+            shadow.position.set(pegX, 0.06, 0);
+            group.add(shadow);
+          }
+
           group.add(ringMesh);
         });
       });
@@ -144,35 +156,42 @@ export default function RingRushScreen() {
 
   // Build Scene Base and Pegs
   const buildScene = useCallback((scene: THREE.Scene) => {
-    // Natural Wooden Stand Base with rounded bevel
-    const baseGeo = new THREE.BoxGeometry(7.8, 0.9, 2.2);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0xdeb887, roughness: 0.5 }); // Golden wood as in screenshot
+    // 1. Natural Wooden Stand Base with rounded bevel
+    const baseGeo = new THREE.BoxGeometry(7.6, 0.9, 2.3);
+    const baseMat = new THREE.MeshStandardMaterial({
+      color: 0xdeb887,
+      roughness: 0.45,
+      metalness: 0.05,
+    });
     const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.set(0, -0.2, 0);
+    base.position.set(0, -0.22, 0);
     scene.add(base);
 
-    // Front wood chamfer strip
-    const trimGeo = new THREE.BoxGeometry(7.8, 0.2, 0.1);
-    const trimMat = new THREE.MeshStandardMaterial({ color: 0xc89656, roughness: 0.4 });
-    const trim = new THREE.Mesh(trimGeo, trimMat);
-    trim.position.set(0, 0.2, 1.11);
-    scene.add(trim);
+    // Front wood chamfer plinth strip
+    const plinthGeo = new THREE.BoxGeometry(7.6, 0.22, 0.12);
+    const plinthMat = new THREE.MeshStandardMaterial({ color: 0xc69255, roughness: 0.4 });
+    const plinth = new THREE.Mesh(plinthGeo, plinthMat);
+    plinth.position.set(0, 0.18, 1.16);
+    scene.add(plinth);
 
-    // 5 Pegs / Sticks (Natural light wood finish)
-    const pegMat = new THREE.MeshStandardMaterial({ color: 0xd2a679, roughness: 0.4 });
+    // 2. 5 Vertical Wooden Pegs (Center peg is taller as in screenshot)
+    const pegMat = new THREE.MeshStandardMaterial({
+      color: 0xdeb887,
+      roughness: 0.4,
+    });
+
     for (let i = 0; i < TOTAL_PEGS; i++) {
-      // Middle peg (index 2) is taller as in screenshot
       const isMiddle = i === 2;
-      const height = isMiddle ? 3.4 : 2.5;
+      const height = isMiddle ? 3.5 : 2.6;
       const pegGeo = new THREE.CylinderGeometry(0.09, 0.09, height, 20);
       const peg = new THREE.Mesh(pegGeo, pegMat);
-      peg.position.set((i - 2) * PEG_SPACING, height / 2 + 0.25, 0);
+      peg.position.set((i - 2) * PEG_SPACING, height / 2 + 0.22, 0);
       scene.add(peg);
 
-      // Rounded peg tip
+      // Rounded peg domed tip
       const tipGeo = new THREE.SphereGeometry(0.09, 16, 16);
       const tip = new THREE.Mesh(tipGeo, pegMat);
-      tip.position.set((i - 2) * PEG_SPACING, height + 0.25, 0);
+      tip.position.set((i - 2) * PEG_SPACING, height + 0.22, 0);
       scene.add(tip);
     }
 
@@ -190,26 +209,33 @@ export default function RingRushScreen() {
     const height = container.clientHeight || 560;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
+    scene.background = new THREE.Color(0x18181b); // Dark studio grey background as in reference
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.set(0, 3.6, 6.0);
-    camera.lookAt(0, 1.0, 0);
+    const camera = new THREE.PerspectiveCamera(48, width / height, 0.1, 100);
+    camera.position.set(0, 3.4, 6.2);
+    camera.lookAt(0, 1.1, 0);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.9);
-    scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
-    dir.position.set(4, 8, 5);
-    scene.add(dir);
+    // Atmospheric Studio Lighting
+    const ambient = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambient);
+
+    const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.8);
+    dirLight.position.set(4, 9, 6);
+    scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.5);
+    rimLight.position.set(-4, 6, -3);
+    scene.add(rimLight);
 
     buildScene(scene);
     updateRingsInScene(pegStacks, null);
@@ -237,24 +263,29 @@ export default function RingRushScreen() {
     };
   }, [buildScene, updateRingsInScene]);
 
-  // Handle Peg Selection / Move
+  // Handle Peg Selection & Ring Transfer
   const handlePegTap = (pegIndex: number) => {
     if (!gameReady || isWon) return;
 
     if (selectedPeg === null) {
-      // Pick up top ring from peg if not empty
       if (pegStacks[pegIndex].length === 0) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSelectedPeg(pegIndex);
     } else if (selectedPeg === pegIndex) {
-      // Deselect
       setSelectedPeg(null);
     } else {
-      // Move ring from selectedPeg to pegIndex
       const sourceStack = [...pegStacks[selectedPeg]];
       const targetStack = [...pegStacks[pegIndex]];
 
       if (sourceStack.length === 0) {
+        setSelectedPeg(null);
+        return;
+      }
+
+      // Max stack height = 6
+      if (targetStack.length >= 6) {
+        setFeedback('PEG FULL! 🛑');
+        setTimeout(() => setFeedback(null), 600);
         setSelectedPeg(null);
         return;
       }
@@ -273,22 +304,24 @@ export default function RingRushScreen() {
       setMoves(newMoves);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Check winning arrangement: Each peg i has exactly [i]
-      const solved = newStacks.every((stack, i) => stack.length === 1 && stack[0] === i);
-      if (solved) {
+      // Check win: all non-empty stacks contain rings of identical color
+      const hasSortedStacks = newStacks.filter((s) => s.length > 0).every((s) => s.every((val) => val === s[0]));
+      const totalRings = newStacks.reduce((sum, s) => sum + s.length, 0);
+
+      if (hasSortedStacks && totalRings >= 14) {
         setIsWon(true);
-        setFeedback('PUZZLE SOLVED! 🎉');
+        setFeedback('SORT COMPLETE! 🎉');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         const totalTime = Date.now() - startTimeRef.current;
-        const finalScore = Math.max(10, 100 - newMoves * 5);
+        const finalScore = Math.max(10, 100 - newMoves * 3);
 
         setTimeout(() => {
           if (matchState.status === 'playing' && matchState.roomId) {
             submitFinalScore(finalScore, totalTime, `${newMoves} moves`);
           } else {
             const won = totalTime < aiTime.current;
-            finish(won, finalScore, 80, 'pts', {
+            finish(won, finalScore, 85, 'pts', {
               playerTimeMs: totalTime,
               aiTimeMs: aiTime.current,
             });
@@ -299,75 +332,39 @@ export default function RingRushScreen() {
   };
 
   const s = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0f172a' },
-    header: {
-      paddingTop: topPad + 12,
-      paddingHorizontal: 20,
-      paddingBottom: 12,
+    container: { flex: 1, backgroundColor: '#18181b' },
+    topBar: {
+      paddingTop: topPad + 4,
+      paddingHorizontal: 16,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      zIndex: 10,
+      zIndex: 20,
     },
-    title: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
-    scorePill: {
-      backgroundColor: 'rgba(255,255,255,0.1)',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.2)',
-    },
-    scoreVal: { fontSize: 16, fontWeight: '700', color: '#8B5CF6', fontFamily: 'Inter_700Bold' },
-    canvasWrapper: { flex: 1, width: '100%' },
-    feedback: {
-      position: 'absolute',
-      bottom: 160,
-      alignSelf: 'center',
-      backgroundColor: '#8B5CF6',
-      paddingHorizontal: 24,
-      paddingVertical: 12,
-      borderRadius: 28,
-      zIndex: 12,
-    },
-    feedbackText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-    pegButtonsRow: {
-      position: 'absolute',
-      bottom: insets.bottom + 40,
-      left: 10,
-      right: 10,
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      zIndex: 10,
-    },
-    pegBtn: {
-      width: 58,
-      height: 58,
-      borderRadius: 29,
-      backgroundColor: '#1E293B',
-      borderWidth: 2,
-      borderColor: '#475569',
+    topIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: 'rgba(0,0,0,0.4)',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    pegBtnActive: {
-      borderColor: '#8B5CF6',
-      backgroundColor: '#312E81',
-    },
-    pegBtnText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '700',
-      fontFamily: 'Inter_700Bold',
-    },
-    hint: {
+    canvasWrapper: { flex: 1, width: '100%' },
+    feedback: {
       position: 'absolute',
-      bottom: insets.bottom + 12,
+      bottom: 220,
       alignSelf: 'center',
-      fontSize: 12,
-      color: 'rgba(255,255,255,0.6)',
-      fontFamily: 'Inter_500Medium',
+      backgroundColor: '#a855f7',
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 28,
+      zIndex: 25,
+      shadowColor: '#000',
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+      elevation: 8,
     },
+    feedbackText: { color: '#FFFFFF', fontSize: 18, fontWeight: '900', fontFamily: 'Inter_700Bold' },
   });
 
   return (
@@ -387,57 +384,69 @@ export default function RingRushScreen() {
         onPlayBot={switchToBotMatch}
       />
 
-      {/* Header */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      {/* Top Header Icons matching Snapchat AR camera interface */}
+      <View style={s.topBar}>
+        <Pressable onPress={() => router.back()} style={s.topIconBtn}>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
         </Pressable>
-        <Text style={s.title}>Ring Sort Puzzle</Text>
-        <View style={s.scorePill}>
-          <Text style={s.scoreVal}>{moves} MOVES</Text>
+
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={s.topIconBtn}>
+            <Ionicons name="musical-notes" size={20} color="#FFFFFF" />
+          </View>
+          <View style={s.topIconBtn}>
+            <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+          </View>
         </View>
       </View>
 
       {/* Top Floating Oval Score Badge matching Snapchat screenshot */}
-      <View style={{
-        position: 'absolute',
-        top: topPad + 45,
-        alignSelf: 'center',
-        width: 44,
-        height: 52,
-        borderRadius: 22,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10,
-        elevation: 6,
-        shadowColor: '#000',
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      }}>
-        <Text style={{ fontSize: 24, fontWeight: '900', color: '#000000' }}>{moves}</Text>
+      <View
+        style={{
+          position: 'absolute',
+          top: topPad + 45,
+          alignSelf: 'center',
+          width: 46,
+          height: 56,
+          borderRadius: 23,
+          backgroundColor: '#FFFFFF',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 15,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOpacity: 0.4,
+          shadowRadius: 8,
+        }}
+      >
+        <Text style={{ fontSize: 26, fontWeight: '900', color: '#000000', fontFamily: 'Inter_700Bold' }}>
+          {moves}
+        </Text>
       </View>
 
-      {/* 3D WebGL Canvas */}
+      {/* 3D WebGL Canvas Layer */}
       <View style={s.canvasWrapper}>
         <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 
-        {/* BEST 25 Trophy Banner on wooden base matching screenshot */}
-        <View style={{
-          position: 'absolute',
-          bottom: insets.bottom + 115,
-          alignSelf: 'center',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 6,
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          paddingHorizontal: 16,
-          paddingVertical: 6,
-          borderRadius: 16,
-          borderWidth: 1.5,
-          borderColor: '#deb887',
-          zIndex: 10,
-        }}>
+        {/* BEST 🏆 25 Banner matching screenshot */}
+        <View
+          style={{
+            position: 'absolute',
+            bottom: insets.bottom + 140,
+            alignSelf: 'center',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            paddingHorizontal: 16,
+            paddingVertical: 5,
+            borderRadius: 16,
+            borderWidth: 1.5,
+            borderColor: '#deb887',
+            zIndex: 15,
+            elevation: 4,
+          }}
+        >
           <Text style={{ fontSize: 16, fontWeight: '900', color: '#0284c7', letterSpacing: 1 }}>BEST 🏆</Text>
           <Text style={{ fontSize: 18, fontWeight: '900', color: '#1e293b' }}>25</Text>
         </View>
@@ -450,23 +459,73 @@ export default function RingRushScreen() {
         </View>
       )}
 
-      {/* Interactive Peg Buttons */}
-      <View style={s.pegButtonsRow}>
-        {[0, 1, 2, 3, 4].map(idx => (
-          <Pressable
-            key={idx}
-            style={[s.pegBtn, selectedPeg === idx && s.pegBtnActive]}
-            onPress={() => handlePegTap(idx)}
-            disabled={!gameReady || isWon}
-          >
-            <Text style={s.pegBtnText}>{idx + 1}</Text>
-          </Pressable>
-        ))}
+      {/* Interactive Peg Tap Buttons */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 70,
+          left: 16,
+          right: 16,
+          flexDirection: 'row',
+          justifyContent: 'space-around',
+          zIndex: 20,
+        }}
+      >
+        {[0, 1, 2, 3, 4].map((idx) => {
+          const isSelected = selectedPeg === idx;
+          return (
+            <Pressable
+              key={idx}
+              onPress={() => handlePegTap(idx)}
+              style={({ pressed }) => [
+                {
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: isSelected ? '#a855f7' : 'rgba(30, 41, 59, 0.9)',
+                  borderWidth: 2.5,
+                  borderColor: isSelected ? '#FFFFFF' : '#475569',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  elevation: 6,
+                },
+                pressed && { transform: [{ scale: 0.94 }] },
+              ]}
+              disabled={!gameReady || isWon}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#FFFFFF' }}>{idx + 1}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <Text style={s.hint}>
-        {selectedPeg !== null ? 'Tap destination peg to place ring' : 'Tap peg button to lift top ring'}
-      </Text>
+      {/* Bottom Category Tabs */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 12,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          zIndex: 20,
+        }}
+      >
+        <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center' }}>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600' }}>Favourites</Text>
+          <View
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.25)',
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 14,
+            }}
+          >
+            <Text style={{ fontSize: 13, color: '#FFFFFF', fontWeight: '800' }}>For you</Text>
+          </View>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600' }}>Games</Text>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', fontWeight: '600' }}>Appearance</Text>
+        </View>
+      </View>
     </View>
   );
 }

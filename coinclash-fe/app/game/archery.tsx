@@ -4,11 +4,10 @@ import { useColors } from '@/hooks/useColors';
 import { useLiveMatch } from '@/hooks/useLiveMatch';
 import { MatchmakingModal } from '@/components/MatchmakingModal';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as THREE from 'three';
 
@@ -16,21 +15,21 @@ const TOTAL_ARROWS = 5;
 
 // Ring scores based on distance from center
 const RING_SCORES = [
-  { radius: 0.15, score: 10, label: 'BULLSEYE 10!' },
-  { radius: 0.35, score: 8, label: 'GREAT 8' },
-  { radius: 0.6, score: 6, label: 'GOOD 6' },
-  { radius: 0.85, score: 4, label: 'HIT 4' },
-  { radius: 1.15, score: 2, label: 'OUTER 2' },
+  { radius: 0.18, score: 10, label: 'BULLSEYE 10! 🎯' },
+  { radius: 0.38, score: 8, label: 'GREAT 8! 🔥' },
+  { radius: 0.62, score: 6, label: 'GOOD 6 👍' },
+  { radius: 0.88, score: 4, label: 'HIT 4 🏹' },
+  { radius: 1.18, score: 2, label: 'OUTER 2 ⚪' },
 ];
 
 export default function ArcheryScreen() {
-  const colors = useColors();
+  const _colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
-  const isPractice = stake === 0;
+  const _isPractice = stake === 0;
   const finish = useGameFinish(stake);
 
   const {
@@ -52,15 +51,15 @@ export default function ArcheryScreen() {
   const [arrowsLeft, setArrowsLeft] = useState(TOTAL_ARROWS);
   const [playerScore, setPlayerScore] = useState(0);
   const [hitFeedback, setHitFeedback] = useState<string | null>(null);
-  const [wind, setWind] = useState({ x: 0, y: 0 }); // wind offset drift per round
-  const [isAiming, setIsAiming] = useState(false);
+  const [wind, setWind] = useState({ x: 0, y: 0 });
+  const [crosshairPos, setCrosshairPos] = useState({ x: 0, y: 0 });
+  const [clearedTargets, setClearedTargets] = useState<number[]>([]);
 
   // Canvas & Three.js refs
   const mountRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const bowGroupRef = useRef<THREE.Group | null>(null);
   const currentArrowRef = useRef<THREE.Group | null>(null);
   const arrowsGroupRef = useRef<THREE.Group | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -71,27 +70,23 @@ export default function ArcheryScreen() {
   const isFlyingRef = useRef(false);
   const startTime = useRef(Date.now());
 
-  // Calibrated AI opponent score (typically 26-44 out of 50)
-  const aiScore = useRef(isPractice ? Math.floor(24 + Math.random() * 16) : Math.floor(32 + Math.random() * 15));
+  const aiScore = useRef(_isPractice ? Math.floor(26 + Math.random() * 16) : Math.floor(34 + Math.random() * 14));
   const aiTime = useRef(TOTAL_ARROWS * 3500 + Math.random() * 4000);
 
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
+  const topPad = Platform.OS === 'web' ? 50 : insets.top;
 
-  // New random wind each arrow
   const generateWind = useCallback(() => {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 0.5 + Math.random() * 1.5;
+    const speed = 0.4 + Math.random() * 1.2;
     const wx = Math.cos(angle) * speed;
     const wy = Math.sin(angle) * speed * 0.5;
     setWind({ x: parseFloat(wx.toFixed(1)), y: parseFloat(wy.toFixed(1)) });
   }, []);
 
-  // 1. Start matchmaking on mount
   useEffect(() => {
     startSearching();
   }, [startSearching]);
 
-  // 2. Opponent display 4 seconds handshake
   useEffect(() => {
     if (matchState.status === 'matched' && !hasSentStart.current) {
       hasSentStart.current = true;
@@ -104,7 +99,6 @@ export default function ArcheryScreen() {
     }
   }, [matchState.status, sendGameStart]);
 
-  // 3. When game begins
   useEffect(() => {
     if (matchState.status === 'playing' || matchState.status === 'offline_ai') {
       setGameReady(true);
@@ -113,7 +107,6 @@ export default function ArcheryScreen() {
     }
   }, [matchState.status, generateWind]);
 
-  // 4. Handle authoritative GAME_OVER in multiplayer
   useEffect(() => {
     if (matchState.status === 'ended' && matchState.gameResult && gameReady) {
       const res = matchState.gameResult;
@@ -129,24 +122,24 @@ export default function ArcheryScreen() {
     const group = new THREE.Group();
 
     // Shaft
-    const shaftGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.2, 8);
+    const shaftGeo = new THREE.CylinderGeometry(0.016, 0.016, 1.3, 8);
     shaftGeo.rotateX(Math.PI / 2);
-    const shaftMat = new THREE.MeshStandardMaterial({ color: 0x8B5A2B, roughness: 0.6 });
+    const shaftMat = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.6 });
     const shaft = new THREE.Mesh(shaftGeo, shaftMat);
     group.add(shaft);
 
-    // Tip
-    const tipGeo = new THREE.ConeGeometry(0.035, 0.12, 8);
+    // Steel Tip
+    const tipGeo = new THREE.ConeGeometry(0.04, 0.14, 8);
     tipGeo.rotateX(Math.PI / 2);
-    tipGeo.translate(0, 0, 0.65);
-    const tipMat = new THREE.MeshStandardMaterial({ color: 0xCCCCCC, metalness: 0.8, roughness: 0.2 });
+    tipGeo.translate(0, 0, 0.72);
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85, roughness: 0.2 });
     const tip = new THREE.Mesh(tipGeo, tipMat);
     group.add(tip);
 
-    // Fletching (feathers)
-    const featherGeo = new THREE.BoxGeometry(0.01, 0.08, 0.18);
-    featherGeo.translate(0, 0, -0.5);
-    const featherMat = new THREE.MeshStandardMaterial({ color: 0xEF4444 });
+    // Red Feathers (fletching)
+    const featherGeo = new THREE.BoxGeometry(0.01, 0.09, 0.2);
+    featherGeo.translate(0, 0, -0.55);
+    const featherMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
     const f1 = new THREE.Mesh(featherGeo, featherMat);
     const f2 = f1.clone();
     f2.rotateZ(Math.PI / 2);
@@ -156,81 +149,44 @@ export default function ArcheryScreen() {
     return group;
   };
 
-  // Helper: Create 3D Bow
-  const createBow = () => {
+  // Helper: Create Authentic Olympic Archery Target (concentric colored rings)
+  const createOlympicTarget = () => {
     const group = new THREE.Group();
 
-    // Bow stave (curved tube / segmented cylinder)
-    const curve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(0, -0.7, 0),
-      new THREE.Vector3(0.15, 0, -0.15),
-      new THREE.Vector3(0, 0.7, 0)
-    );
-    const staveGeo = new THREE.TubeGeometry(curve, 20, 0.025, 8, false);
-    const staveMat = new THREE.MeshStandardMaterial({ color: 0x4A2E12, roughness: 0.5 });
-    const stave = new THREE.Mesh(staveGeo, staveMat);
-    group.add(stave);
-
-    // Bowstring
-    const stringGeo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, -0.7, 0),
-      new THREE.Vector3(0, 0, 0.02),
-      new THREE.Vector3(0, 0.7, 0),
-    ]);
-    const stringMat = new THREE.LineBasicMaterial({ color: 0xE5E7EB, linewidth: 2 });
-    const stringLine = new THREE.Line(stringGeo, stringMat);
-    group.add(stringLine);
-
-    return group;
-  };
-
-  // Helper: Create 3D Archery Target with rings
-  const createTarget = () => {
-    const group = new THREE.Group();
-
-    // Stand legs
-    const legGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.8, 8);
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x5C3A21 });
-    const legL = new THREE.Mesh(legGeo, legMat);
-    legL.position.set(-0.5, 0.5, -0.2);
-    legL.rotation.z = 0.25;
-    legL.rotation.x = -0.15;
-    const legR = new THREE.Mesh(legGeo, legMat);
-    legR.position.set(0.5, 0.5, -0.2);
-    legR.rotation.z = -0.25;
-    legR.rotation.x = -0.15;
-    const legBack = new THREE.Mesh(legGeo, legMat);
-    legBack.position.set(0, 0.5, 0.4);
-    legBack.rotation.x = 0.35;
-    group.add(legL);
-    group.add(legR);
-    group.add(legBack);
-
-    // Target boss backing (straw circle)
-    const backGeo = new THREE.CylinderGeometry(1.25, 1.25, 0.15, 32);
+    // White Outer Boss / Backing with bevel
+    const backGeo = new THREE.CylinderGeometry(1.22, 1.22, 0.08, 36);
     backGeo.rotateX(Math.PI / 2);
-    const backMat = new THREE.MeshStandardMaterial({ color: 0xD4A373, roughness: 0.9 });
-    const backing = new THREE.Mesh(backGeo, backMat);
-    backing.position.set(0, 1.5, 0);
-    group.add(backing);
+    const backMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+    const backMesh = new THREE.Mesh(backGeo, backMat);
+    group.add(backMesh);
 
-    // Scoring Rings (facing Z = -0.08)
+    // Olympic Rings from outside to inside: White, Black, Cyan-Blue, Red, Yellow (Gold)
     const rings = [
-      { r: 1.15, color: 0xF3F4F6 }, // White (1-2)
-      { r: 0.85, color: 0x1F2937 }, // Black (3-4)
-      { r: 0.6, color: 0x3B82F6 },  // Blue (5-6)
-      { r: 0.35, color: 0xEF4444 }, // Red (7-8)
-      { r: 0.15, color: 0xFBBF24 }, // Gold (9-10)
+      { r: 1.18, color: 0xffffff }, // White outer rim
+      { r: 0.88, color: 0x111827 }, // Black
+      { r: 0.62, color: 0x0284c7 }, // Cyan Blue
+      { r: 0.38, color: 0xdc2626 }, // Red
+      { r: 0.18, color: 0xfacc15 }, // Yellow Gold (Bullseye)
     ];
 
     rings.forEach(({ r, color }, i) => {
-      const ringGeo = new THREE.CylinderGeometry(r, r, 0.01, 32);
+      const ringGeo = new THREE.CylinderGeometry(r, r, 0.012, 36);
       ringGeo.rotateX(Math.PI / 2);
-      const ringMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4 });
+      const ringMat = new THREE.MeshStandardMaterial({ color, roughness: 0.35 });
       const mesh = new THREE.Mesh(ringGeo, ringMat);
-      mesh.position.set(0, 1.5, -0.08 - i * 0.005);
+      mesh.position.set(0, 0, 0.045 + i * 0.005);
       group.add(mesh);
     });
+
+    // Inner cross mark on bullseye
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.01), crossMat);
+    crossH.position.set(0, 0, 0.075);
+    group.add(crossH);
+
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.12, 0.01), crossMat);
+    crossV.position.set(0, 0, 0.075);
+    group.add(crossV);
 
     return group;
   };
@@ -243,108 +199,73 @@ export default function ArcheryScreen() {
     const width = container.clientWidth || 360;
     const height = container.clientHeight || 560;
 
-    // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a051b);
-    scene.fog = new THREE.FogExp2(0x0a051b, 0.035);
+    scene.background = new THREE.Color(0x0a0a0e); // Dark room background
     sceneRef.current = scene;
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 100);
-    camera.position.set(0, 1.4, 6.2);
+    const camera = new THREE.PerspectiveCamera(54, width / height, 0.1, 100);
+    camera.position.set(0, 0, 6.4);
+    camera.lookAt(0, 0, -6.0);
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.enabled = true;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Lights
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e1533, 0.9);
-    scene.add(hemiLight);
+    // Dark Room Ambient Light
+    const ambient = new THREE.AmbientLight(0x222233, 0.4);
+    scene.add(ambient);
 
-    const dirLight = new THREE.DirectionalLight(0xffeedd, 1.5);
-    dirLight.position.set(5, 10, 7);
-    scene.add(dirLight);
+    // Camera Flashlight Beam Spotlight focused on the targets
+    const flashLight = new THREE.SpotLight(0xffffff, 4.5, 30, Math.PI / 4, 0.5);
+    flashLight.position.set(0, 0, 6.2);
+    flashLight.target.position.set(0, 0, -6.0);
+    scene.add(flashLight);
+    scene.add(flashLight.target);
 
-    // Ground grass field
-    const groundGeo = new THREE.PlaneGeometry(30, 40);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x14532D, roughness: 0.9 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.1;
-    scene.add(ground);
+    // Dark Wall behind targets
+    const wallGeo = new THREE.PlaneGeometry(30, 24);
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x181820, roughness: 0.95 });
+    const wall = new THREE.Mesh(wallGeo, wallMat);
+    wall.position.set(0, 0, -6.2);
+    scene.add(wall);
 
-    // Archery range distance markers
-    for (let z = 0; z < 5; z++) {
-      const lineGeo = new THREE.PlaneGeometry(12, 0.08);
-      const lineMat = new THREE.MeshBasicMaterial({ color: 0x22C55E, transparent: true, opacity: 0.35 });
-      const line = new THREE.Mesh(lineGeo, lineMat);
-      line.rotation.x = -Math.PI / 2;
-      line.position.set(0, -0.09, z * -2.5 + 4);
-      scene.add(line);
-    }
-
-    // 2x2 Grid of 4 Archery Targets as in reference screenshot
+    // 2x2 Grid of 4 Archery Targets exactly as in Snapchat screenshot
+    const targetSpacing = 1.35;
     const tPositions = [
-      { x: -1.4, y: 1.0 }, // Top-Left
-      { x: 1.4, y: 1.0 },  // Top-Right
-      { x: -1.4, y: -1.4 }, // Bottom-Left
-      { x: 1.4, y: -1.4 },  // Bottom-Right
+      { x: -targetSpacing, y: targetSpacing }, // 0: Top-Left
+      { x: targetSpacing, y: targetSpacing },  // 1: Top-Right
+      { x: -targetSpacing, y: -targetSpacing }, // 2: Bottom-Left
+      { x: targetSpacing, y: -targetSpacing },  // 3: Bottom-Right
     ];
 
     tPositions.forEach((pos) => {
-      const target = createTarget();
-      target.position.set(pos.x, pos.y, -6);
+      const target = createOlympicTarget();
+      target.position.set(pos.x, pos.y, -6.0);
       scene.add(target);
     });
 
-    // Bow placed near player view
-    const bow = createBow();
-    bow.position.set(0.35, 1.25, 4.8);
-    bow.rotation.y = -0.15;
-    scene.add(bow);
-    bowGroupRef.current = bow;
+    // Arrow ready at bow/shutter position
+    const arrow = createArrow();
+    arrow.position.set(0, -1.8, 4.2);
+    scene.add(arrow);
+    currentArrowRef.current = arrow;
 
-    // Current active nocked arrow
-    const currentArrow = createArrow();
-    currentArrow.position.set(0.35, 1.25, 4.8);
-    scene.add(currentArrow);
-    currentArrowRef.current = currentArrow;
+    // Group for stuck arrows
+    const stuckGroup = new THREE.Group();
+    scene.add(stuckGroup);
+    arrowsGroupRef.current = stuckGroup;
 
-    // Arrows stuck in target group
-    const stuckArrows = new THREE.Group();
-    scene.add(stuckArrows);
-    arrowsGroupRef.current = stuckArrows;
-
-    // Animation Loop
-    let lastTime = performance.now();
-    const animate = (time: number) => {
+    const animate = () => {
       animationFrameRef.current = requestAnimationFrame(animate);
-      const dt = (time - lastTime) / 1000;
-      lastTime = time;
-
-      // Gentle idle sway of bow when aiming
-      if (bowGroupRef.current && !isFlyingRef.current) {
-        const aim = aimRef.current;
-        bowGroupRef.current.position.x = 0.35 + aim.x * 0.4;
-        bowGroupRef.current.position.y = 1.25 + aim.y * 0.35;
-        if (currentArrowRef.current) {
-          currentArrowRef.current.position.copy(bowGroupRef.current.position);
-          currentArrowRef.current.rotation.y = aim.x * -0.12;
-          currentArrowRef.current.rotation.x = aim.y * 0.12;
-        }
-      }
-
       renderer.render(scene, camera);
     };
-    animate(performance.now());
+    animate();
 
-    // Window resize handler
     const handleResize = () => {
       if (!container || !camera || !renderer) return;
       const w = container.clientWidth;
@@ -359,101 +280,107 @@ export default function ArcheryScreen() {
       window.removeEventListener('resize', handleResize);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       renderer.dispose();
-      if (container && renderer.domElement) {
-        container.removeChild(renderer.domElement);
-      }
     };
   }, []);
 
-  // Fire Arrow with 3D Ballistic Trajectory & Wind Drift
+  // Fire Arrow with Ballistic trajectory into the aimed target
   const fireArrow = useCallback(() => {
     if (isFlyingRef.current || arrowsLeft <= 0 || !gameReady) return;
 
     isFlyingRef.current = true;
-    setIsAiming(false);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     const arrow = currentArrowRef.current;
     if (!arrow || !sceneRef.current) return;
 
-    // Start position (at bow)
-    const startPos = arrow.position.clone();
-    // Calculate final impact target on target face (Z = -6)
-    // Wind drift influences horizontal & vertical landing
-    const aim = aimRef.current;
-    const impactX = aim.x * 1.35 + wind.x * 0.35;
-    const impactY = 1.5 + aim.y * 1.35 + wind.y * 0.25;
-    const targetPos = new THREE.Vector3(impactX, impactY, -6);
+    const startPos = new THREE.Vector3(0, -1.8, 4.2);
 
-    const flightDuration = 0.65; // 650ms flight
+    // Target aimed position with slight wind deflection
+    const targetX = aimRef.current.x * 2.8 + wind.x * 0.12;
+    const targetY = aimRef.current.y * 2.8 + wind.y * 0.12;
+    const targetPos = new THREE.Vector3(targetX, targetY, -5.9);
+
     const startTimeFlight = performance.now();
+    const flightDuration = 450; // fast snappy arrow flight
 
     const animateFlight = () => {
       const now = performance.now();
-      const progress = Math.min(1, (now - startTimeFlight) / (flightDuration * 1000));
+      const p = Math.min(1, (now - startTimeFlight) / flightDuration);
 
-      // Quadratic bezier arc in Y
-      const currentPos = new THREE.Vector3().lerpVectors(startPos, targetPos, progress);
-      currentPos.y += Math.sin(progress * Math.PI) * 0.35; // ballistic arc rise
-      arrow.position.copy(currentPos);
+      const pos = new THREE.Vector3().lerpVectors(startPos, targetPos, p);
+      pos.y += Math.sin(p * Math.PI) * 0.35;
+      arrow.position.copy(pos);
+      arrow.lookAt(targetPos);
 
-      // Rotate arrow along velocity direction
-      const dx = targetPos.x - startPos.x;
-      const dy = (targetPos.y - startPos.y) + Math.cos(progress * Math.PI) * 0.35;
-      const dz = targetPos.z - startPos.z;
-      arrow.rotation.x = Math.atan2(dy, -dz);
-      arrow.rotation.y = Math.atan2(dx, -dz);
-
-      if (progress < 1) {
+      if (p < 1) {
         requestAnimationFrame(animateFlight);
       } else {
-        // Impact on target!
-        arrow.position.copy(targetPos);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-        // Calculate score from center of target (X=0, Y=1.5)
-        const dist = Math.sqrt(impactX * impactX + (impactY - 1.5) * (impactY - 1.5));
-        let points = 0;
-        let label = 'MISS 0';
+        // Determine which of the 4 targets was closest
+        const targetSpacing = 1.35;
+        const targets = [
+          { id: 0, x: -targetSpacing, y: targetSpacing },
+          { id: 1, x: targetSpacing, y: targetSpacing },
+          { id: 2, x: -targetSpacing, y: -targetSpacing },
+          { id: 3, x: targetSpacing, y: -targetSpacing },
+        ];
 
+        let closestTarget = targets[0];
+        let minDist = 999;
+        targets.forEach((t) => {
+          const d = Math.hypot(targetX - t.x, targetY - t.y);
+          if (d < minDist) {
+            minDist = d;
+            closestTarget = t;
+          }
+        });
+
+        // Calculate score from center of closest target
+        let roundScore = 0;
+        let scoreLabel = 'MISS 😬';
         for (const ring of RING_SCORES) {
-          if (dist <= ring.radius) {
-            points = ring.score;
-            label = ring.label;
+          if (minDist <= ring.radius) {
+            roundScore = ring.score;
+            scoreLabel = ring.label;
             break;
           }
         }
 
-        setHitFeedback(label);
-        setTimeout(() => setHitFeedback(null), 1200);
-
-        const newScore = playerScore + points;
-        const newArrows = arrowsLeft - 1;
+        const newScore = playerScore + roundScore;
         setPlayerScore(newScore);
-        setArrowsLeft(newArrows);
+        setHitFeedback(scoreLabel);
 
-        // Broadcast progress in live match
-        if (matchState.status === 'matched' && matchState.roomId) {
-          sendProgress(TOTAL_ARROWS - newArrows, newScore, Date.now() - startTime.current);
+        if (roundScore >= 6) {
+          setClearedTargets((prev) => (prev.includes(closestTarget.id) ? prev : [...prev, closestTarget.id]));
         }
 
-        // Leave arrow stuck in target & spawn fresh nocked arrow
+        setTimeout(() => setHitFeedback(null), 900);
+
+        // Leave arrow stuck in wall/target
+        const stuckArrow = createArrow();
+        stuckArrow.position.copy(targetPos);
+        stuckArrow.position.z += 0.4;
+        stuckArrow.lookAt(targetPos);
         if (arrowsGroupRef.current) {
-          const stuck = createArrow();
-          stuck.position.copy(targetPos);
-          stuck.rotation.copy(arrow.rotation);
-          arrowsGroupRef.current.add(stuck);
+          arrowsGroupRef.current.add(stuckArrow);
         }
 
-        // Check if finished
-        if (newArrows <= 0) {
+        const remaining = arrowsLeft - 1;
+        setArrowsLeft(remaining);
+
+        if (matchState.status === 'playing' && matchState.roomId) {
+          sendProgress(TOTAL_ARROWS - remaining, newScore, Date.now() - startTime.current);
+        }
+
+        if (remaining <= 0) {
+          // Game Over
           const totalTime = Date.now() - startTime.current;
           setTimeout(() => {
-            if (matchState.status === 'matched' && matchState.roomId) {
-              submitFinalScore(newScore, totalTime, `${newScore}/${TOTAL_ARROWS * 10}`);
+            if (matchState.status === 'playing' && matchState.roomId) {
+              submitFinalScore(newScore, totalTime, `${newScore} PTS`);
             } else {
-              // Practice / Offline bot resolution
-              const won = newScore > aiScore.current || (newScore === aiScore.current && totalTime < aiTime.current);
+              const won = newScore > aiScore.current;
               finish(won, newScore, aiScore.current, 'pts', {
                 playerTimeMs: totalTime,
                 aiTimeMs: aiTime.current,
@@ -461,143 +388,91 @@ export default function ArcheryScreen() {
             }
           }, 800);
         } else {
-          // Reset nocked arrow for next round
+          // Reload next arrow
+          generateWind();
           setTimeout(() => {
-            if (bowGroupRef.current && arrow) {
-              arrow.position.copy(bowGroupRef.current.position);
-              arrow.rotation.set(0, 0, 0);
-              generateWind();
-              isFlyingRef.current = false;
+            if (currentArrowRef.current) {
+              currentArrowRef.current.position.set(0, -1.8, 4.2);
+              currentArrowRef.current.rotation.set(0, 0, 0);
             }
-          }, 400);
+            isFlyingRef.current = false;
+          }, 350);
         }
       }
     };
-
     requestAnimationFrame(animateFlight);
-  }, [arrowsLeft, gameReady, playerScore, wind, matchState.status, matchState.roomId, sendProgress, submitFinalScore, finish, generateWind]);
+  }, [arrowsLeft, gameReady, generateWind, matchState.status, matchState.roomId, playerScore, sendProgress, submitFinalScore, finish, wind]);
 
-  // Touch & Pointer Aim Controls
+  // Pointer drag to aim reticle
   const handlePointerDown = (e: any) => {
-    if (isFlyingRef.current || arrowsLeft <= 0 || !gameReady) return;
+    if (isFlyingRef.current || !gameReady) return;
     isDraggingRef.current = true;
-    setIsAiming(true);
+    updateAim(e);
   };
 
   const handlePointerMove = (e: any) => {
-    if (!isDraggingRef.current || isFlyingRef.current) return;
-    const nativeEvent = e.nativeEvent || e;
-    const clientX = nativeEvent.touches ? nativeEvent.touches[0].clientX : nativeEvent.clientX;
-    const clientY = nativeEvent.touches ? nativeEvent.touches[0].clientY : nativeEvent.clientY;
+    if (!isDraggingRef.current) return;
+    updateAim(e);
+  };
 
-    if (mountRef.current) {
-      const rect = mountRef.current.getBoundingClientRect();
-      const normX = ((clientX - rect.left) / rect.width) * 2 - 1;
-      const normY = -(((clientY - rect.top) / rect.height) * 2 - 1);
-      aimRef.current = {
-        x: Math.max(-1, Math.min(1, normX)),
-        y: Math.max(-1, Math.min(1, normY)),
-      };
-    }
+  const updateAim = (e: any) => {
+    const ne = e.nativeEvent || e;
+    const clientX = ne.clientX ?? (ne.touches ? ne.touches[0].clientX : 0);
+    const clientY = ne.clientY ?? (ne.touches ? ne.touches[0].clientY : 0);
+
+    const w = window.innerWidth || 360;
+    const h = window.innerHeight || 600;
+
+    const normX = Math.max(-1, Math.min(1, (clientX / w - 0.5) * 2));
+    const normY = Math.max(-1, Math.min(1, -(clientY / h - 0.5) * 2));
+
+    aimRef.current = { x: normX, y: normY };
+    setCrosshairPos({ x: clientX, y: clientY });
   };
 
   const handlePointerUp = () => {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
-    fireArrow();
   };
 
   const s = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#090514' },
-    header: {
-      paddingTop: topPad + 12,
-      paddingHorizontal: 20,
-      paddingBottom: 12,
+    container: { flex: 1, backgroundColor: '#0a0a0e' },
+    topBar: {
+      paddingTop: topPad + 4,
+      paddingHorizontal: 16,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      zIndex: 10,
+      zIndex: 20,
     },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: colors.foreground, fontFamily: 'Inter_700Bold' },
-    scorePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: colors.card,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    scoreVal: { fontSize: 16, fontWeight: '700', color: colors.gold, fontFamily: 'Inter_700Bold' },
-    hudOverlay: {
-      position: 'absolute',
-      top: topPad + 60,
-      left: 16,
-      right: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      zIndex: 10,
-      pointerEvents: 'none',
-    },
-    windBox: {
-      backgroundColor: 'rgba(17, 24, 39, 0.85)',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      gap: 2,
-    },
-    windText: { fontSize: 12, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
-    arrowsLeftRow: { flexDirection: 'row', gap: 6 },
-    arrowPip: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.muted },
-    arrowPipActive: { backgroundColor: colors.primary },
-    canvasWrapper: {
-      flex: 1,
-      width: '100%',
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    crosshairContainer: {
-      position: 'absolute',
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      borderWidth: 2.5,
-      borderColor: '#ef4444', // Bright red tactical reticle as in reference screenshot
+    topIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: 'rgba(0,0,0,0.5)',
       alignItems: 'center',
       justifyContent: 'center',
-      pointerEvents: 'none',
-      zIndex: 5,
     },
-    crosshairDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' },
-    feedbackBanner: {
+    canvasWrapper: { flex: 1, width: '100%' },
+    feedback: {
       position: 'absolute',
-      bottom: 120,
+      bottom: 180,
       alignSelf: 'center',
-      backgroundColor: colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      borderRadius: 24,
-      zIndex: 12,
+      backgroundColor: '#ef4444',
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 28,
+      zIndex: 25,
+      shadowColor: '#000',
+      shadowOpacity: 0.6,
+      shadowRadius: 10,
+      elevation: 8,
     },
-    feedbackText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-    bottomGuide: {
-      paddingBottom: insets.bottom + 16,
-      alignItems: 'center',
-      gap: 4,
-      zIndex: 10,
-    },
-    guideText: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
+    feedbackText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', fontFamily: 'Inter_700Bold' },
   });
 
   return (
     <View style={s.container}>
-      {/* Matchmaking Modal */}
       <MatchmakingModal
         visible={matchState.status === 'searching' || (matchState.status === 'matched' && !gameReady)}
         gameTitle="🎯 Archery Target Rush"
@@ -613,45 +488,55 @@ export default function ArcheryScreen() {
         onPlayBot={switchToBotMatch}
       />
 
-      {/* Top Header */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()}>
-          <Ionicons name="close" size={28} color="#FFFFFF" />
+      {/* Top Header Icons matching Snapchat AR camera interface */}
+      <View style={s.topBar}>
+        <Pressable onPress={() => router.back()} style={s.topIconBtn}>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
         </Pressable>
-        <Text style={s.headerTitle}>Archery Target Rush</Text>
-        <View style={s.scorePill}>
-          <Text style={s.scoreVal}>{playerScore} PTS</Text>
+
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={s.topIconBtn}>
+            <Ionicons name="musical-notes" size={20} color="#FFFFFF" />
+          </View>
+          <View style={s.topIconBtn}>
+            <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+          </View>
         </View>
       </View>
 
-      {/* Top 4 Target Indicator Cards matching Snapchat reference */}
-      <View style={{
-        position: 'absolute',
-        top: topPad + 60,
-        left: 20,
-        right: 20,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        zIndex: 10,
-        pointerEvents: 'none',
-      }}>
+      {/* Top 4 Target Indicator Glassmorphic Cards matching Snapchat reference */}
+      <View
+        style={{
+          position: 'absolute',
+          top: topPad + 45,
+          left: 20,
+          right: 20,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          zIndex: 15,
+          pointerEvents: 'none',
+        }}
+      >
         {[0, 1, 2, 3].map((idx) => {
-          const isCleared = (TOTAL_ARROWS - arrowsLeft) > idx;
+          const isCleared = clearedTargets.includes(idx);
           return (
             <View
               key={idx}
               style={{
-                width: 68,
-                height: 96,
-                borderRadius: 14,
-                backgroundColor: isCleared ? 'rgba(34, 197, 94, 0.25)' : 'rgba(30, 41, 59, 0.75)',
+                width: 66,
+                height: 94,
+                borderRadius: 16,
+                backgroundColor: isCleared ? 'rgba(34, 197, 94, 0.35)' : 'rgba(30, 41, 59, 0.65)',
                 borderWidth: 2,
-                borderColor: isCleared ? '#22c55e' : 'rgba(255, 255, 255, 0.2)',
+                borderColor: isCleared ? '#22c55e' : 'rgba(255, 255, 255, 0.18)',
                 alignItems: 'center',
                 justifyContent: 'center',
+                shadowColor: isCleared ? '#22c55e' : '#000',
+                shadowOpacity: 0.5,
+                shadowRadius: 8,
               }}
             >
-              <Text style={{ fontSize: 24 }}>{isCleared ? '🎯' : ''}</Text>
+              <Text style={{ fontSize: 26 }}>{isCleared ? '🎯' : ''}</Text>
             </View>
           );
         })}
@@ -666,53 +551,122 @@ export default function ArcheryScreen() {
       >
         <div ref={mountRef} style={{ width: '100%', height: '100%', touchAction: 'none' }} />
 
-        {/* Dynamic Aim Crosshair */}
-        <View style={s.crosshairContainer}>
-          <View style={s.crosshairDot} />
-        </View>
+        {/* Dynamic Red Tactical Aim Crosshair matching reference */}
+        {crosshairPos.x > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: crosshairPos.x - 28,
+              top: crosshairPos.y - 28,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              borderWidth: 3,
+              borderColor: '#ef4444',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+              zIndex: 18,
+            }}
+          >
+            {/* Center tick dot */}
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' }} />
+            {/* Horizontal & vertical tick marks */}
+            <View
+              style={{
+                position: 'absolute',
+                width: 50,
+                height: 2,
+                backgroundColor: 'rgba(239, 68, 68, 0.75)',
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                height: 50,
+                width: 2,
+                backgroundColor: 'rgba(239, 68, 68, 0.75)',
+              }}
+            />
+          </View>
+        )}
       </View>
 
-      {/* Impact Score Feedback Banner */}
+      {/* Feedback Banner */}
       {hitFeedback && (
-        <View style={s.feedbackBanner}>
+        <View style={s.feedback}>
           <Text style={s.feedbackText}>{hitFeedback}</Text>
         </View>
       )}
 
-      {/* Bottom Circular Target Trigger matching Snapchat camera button */}
-      <View style={{
-        position: 'absolute',
-        bottom: insets.bottom + 20,
-        alignSelf: 'center',
-        alignItems: 'center',
-        zIndex: 10,
-      }}>
+      {/* Bottom Shutter Trigger Button matching Snapchat camera interface */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 16,
+          alignSelf: 'center',
+          alignItems: 'center',
+          zIndex: 20,
+        }}
+      >
         <Pressable
           onPress={fireArrow}
-          style={{
-            width: 76,
-            height: 76,
-            borderRadius: 38,
-            backgroundColor: '#0f172a',
-            borderWidth: 4,
-            borderColor: '#FFFFFF',
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: '#000',
-            shadowOpacity: 0.5,
-            shadowRadius: 10,
-            elevation: 8,
-          }}
+          style={({ pressed }) => [
+            {
+              width: 82,
+              height: 82,
+              borderRadius: 41,
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              borderWidth: 4,
+              borderColor: '#FFFFFF',
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOpacity: 0.6,
+              shadowRadius: 10,
+              elevation: 10,
+            },
+            pressed && { transform: [{ scale: 0.94 }] },
+          ]}
+          disabled={isFlyingRef.current || arrowsLeft <= 0}
         >
-          {/* Target concentric mini-rings */}
-          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#0284c7', alignItems: 'center', justifyContent: 'center' }}>
-            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#facc15' }} />
+          {/* Olympic Target Shutter Icon */}
+          <View
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: '#0284c7',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: '#111827',
+            }}
+          >
+            <View
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: '#dc2626',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#facc15' }} />
             </View>
           </View>
         </Pressable>
-        <Text style={{ marginTop: 8, fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'Inter_500Medium' }}>
-          TAP TO SHOOT
+        <Text
+          style={{
+            marginTop: 8,
+            fontSize: 12,
+            fontWeight: '800',
+            color: 'rgba(255, 255, 255, 0.8)',
+            letterSpacing: 1,
+          }}
+        >
+          {arrowsLeft > 0 ? `DRAG TO AIM • TAP TO SHOOT (${arrowsLeft} LEFT)` : 'MATCH FINISHED'}
         </Text>
       </View>
     </View>

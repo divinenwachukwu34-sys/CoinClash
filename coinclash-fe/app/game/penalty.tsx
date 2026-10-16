@@ -15,13 +15,13 @@ const TOTAL_ROUNDS = 5;
 type Direction = 'left' | 'center' | 'right';
 
 export default function PenaltyScreen() {
-  const colors = useColors();
+  const _colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ stake: string }>();
   const stake = parseInt(params.stake ?? '10', 10);
-  const isPractice = stake === 0;
+  const _isPractice = stake === 0;
   const finish = useGameFinish(stake);
 
   const {
@@ -51,7 +51,7 @@ export default function PenaltyScreen() {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const ballRef = useRef<THREE.Mesh | null>(null);
+  const ballRef = useRef<THREE.Group | null>(null);
   const keeperRef = useRef<THREE.Group | null>(null);
   const kickerRef = useRef<THREE.Group | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -61,7 +61,7 @@ export default function PenaltyScreen() {
   const roundRef = useRef(1);
   const startTimeRef = useRef(Date.now());
 
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
+  const topPad = Platform.OS === 'web' ? 50 : insets.top;
 
   // Matchmaking
   useEffect(() => {
@@ -95,52 +95,147 @@ export default function PenaltyScreen() {
     }
   }, [matchState.status, matchState.gameResult, finish, gameReady]);
 
+  // Helper: Create Soccer Ball with Black Pentagons
+  const createSoccerBall = () => {
+    const group = new THREE.Group();
+    const ballGeo = new THREE.SphereGeometry(0.28, 24, 24);
+    const ballMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.25,
+      metalness: 0.05,
+    });
+    const sphere = new THREE.Mesh(ballGeo, ballMat);
+    group.add(sphere);
+
+    // Black pentagonal patches
+    const patchMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+    const patchAngles = [
+      [0, 0, 0.27],
+      [0, 0, -0.27],
+      [0.24, 0.12, 0],
+      [-0.24, 0.12, 0],
+      [0, 0.26, 0.08],
+      [0.15, -0.22, 0.1],
+      [-0.15, -0.22, 0.1],
+    ];
+
+    patchAngles.forEach(([x, y, z]) => {
+      const p = new THREE.Mesh(new THREE.CircleGeometry(0.08, 5), patchMat);
+      p.position.set(x, y, z);
+      p.lookAt(x * 2, y * 2, z * 2);
+      group.add(p);
+    });
+
+    return group;
+  };
+
+  // Helper: Create Cartoon Stadium Clouds
+  const createCloud = (x: number, y: number, z: number, scale: number = 1.0) => {
+    const group = new THREE.Group();
+    const cloudMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.9,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    const c1 = new THREE.Mesh(new THREE.SphereGeometry(1.4 * scale, 16, 16), cloudMat);
+    const c2 = new THREE.Mesh(new THREE.SphereGeometry(1.0 * scale, 16, 16), cloudMat);
+    c2.position.set(1.2 * scale, -0.2 * scale, 0);
+    const c3 = new THREE.Mesh(new THREE.SphereGeometry(1.1 * scale, 16, 16), cloudMat);
+    c3.position.set(-1.1 * scale, -0.2 * scale, 0);
+
+    group.add(c1);
+    group.add(c2);
+    group.add(c3);
+    group.position.set(x, y, z);
+    return group;
+  };
+
+  // Helper: Create Mowed Turf Texture
+  const createPitchTexture = () => {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Alternating lawn mow stripes
+    const stripeH = 64;
+    for (let y = 0; y < 1024; y += stripeH) {
+      ctx.fillStyle = (y / stripeH) % 2 === 0 ? '#4ade80' : '#22c55e';
+      ctx.fillRect(0, y, 1024, stripeH);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 4);
+    return tex;
+  };
+
   // Build Scene
   const buildScene = useCallback((scene: THREE.Scene) => {
-    // Red Curved Stadium Stands (as in screenshot)
-    const stadiumGeo = new THREE.CylinderGeometry(18, 18, 9, 32, 1, true, -Math.PI * 0.7, Math.PI * 1.4);
-    const stadiumMat = new THREE.MeshStandardMaterial({ color: 0x9f1239, side: THREE.BackSide, roughness: 0.8 });
+    // 1. Clouds in blue sky
+    scene.add(createCloud(-8, 9, -15, 1.4));
+    scene.add(createCloud(7, 10, -16, 1.2));
+    scene.add(createCloud(0, 11, -18, 1.6));
+
+    // 2. Red Curved Stadium Stands (as in screenshot)
+    const stadiumGeo = new THREE.CylinderGeometry(20, 20, 9.5, 36, 1, true, -Math.PI * 0.75, Math.PI * 1.5);
+    const stadiumMat = new THREE.MeshStandardMaterial({
+      color: 0x991b1b,
+      side: THREE.BackSide,
+      roughness: 0.75,
+    });
     const stadium = new THREE.Mesh(stadiumGeo, stadiumMat);
-    stadium.position.set(0, 3.5, -12);
+    stadium.position.set(0, 3.8, -12);
     scene.add(stadium);
 
-    // Stadium upper tier trim
-    const trimGeo = new THREE.TorusGeometry(18.1, 0.4, 8, 32, Math.PI * 1.4);
-    const trimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 });
+    // Stadium upper tier white trim
+    const trimGeo = new THREE.TorusGeometry(20.1, 0.45, 8, 36, Math.PI * 1.5);
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
     const trim = new THREE.Mesh(trimGeo, trimMat);
     trim.rotation.x = Math.PI / 2;
-    trim.position.set(0, 8.0, -12);
+    trim.position.set(0, 8.5, -12);
     scene.add(trim);
 
-    // Floodlight tower in distance
+    // 3. Floodlight tower in distance (grid of glowing yellow bulbs)
     const lightTower = new THREE.Group();
     const lightBox = new THREE.Mesh(
-      new THREE.BoxGeometry(3.2, 1.8, 0.3),
-      new THREE.MeshStandardMaterial({ color: 0x475569 })
+      new THREE.BoxGeometry(3.6, 2.0, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.4 })
     );
-    lightBox.position.set(0, 9.5, -13.5);
+    lightBox.position.set(0, 9.8, -13.5);
     lightTower.add(lightBox);
-    // Yellow floodlight bulbs
-    for (let r = 0; r < 2; r++) {
+
+    // 3 rows x 5 columns = 15 yellow floodlight bulbs
+    for (let r = 0; r < 3; r++) {
       for (let c = 0; c < 5; c++) {
         const bulb = new THREE.Mesh(
-          new THREE.CircleGeometry(0.18, 12),
+          new THREE.CircleGeometry(0.18, 14),
           new THREE.MeshBasicMaterial({ color: 0xfef08a })
         );
-        bulb.position.set(-1.1 + c * 0.55, 9.8 - r * 0.6, -13.3);
+        bulb.position.set(-1.2 + c * 0.6, 10.3 - r * 0.5, -13.3);
         lightTower.add(bulb);
       }
     }
     scene.add(lightTower);
 
-    // Bright Green Pitch / Grass
-    const pitchGeo = new THREE.PlaneGeometry(36, 40);
-    const pitchMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.6 });
+    // 4. Bright Green Pitch / Grass with mow stripes
+    const pitchTex = createPitchTexture();
+    const pitchGeo = new THREE.PlaneGeometry(40, 44);
+    const pitchMat = new THREE.MeshStandardMaterial({
+      map: pitchTex || undefined,
+      color: pitchTex ? 0xffffff : 0x22c55e,
+      roughness: 0.55,
+    });
     const pitch = new THREE.Mesh(pitchGeo, pitchMat);
     pitch.rotation.x = -Math.PI / 2;
     scene.add(pitch);
 
-    // Pitch Line Markings (Penalty box & penalty arc circle)
+    // Field Markings (Penalty Box & Penalty Arc Circle)
     const penArcGeo = new THREE.RingGeometry(3.6, 3.75, 48);
     const penArcMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
     const penArc = new THREE.Mesh(penArcGeo, penArcMat);
@@ -149,18 +244,27 @@ export default function PenaltyScreen() {
     scene.add(penArc);
 
     const penBoxLine = new THREE.Mesh(
-      new THREE.PlaneGeometry(10.5, 0.15),
+      new THREE.PlaneGeometry(11.0, 0.16),
       new THREE.MeshBasicMaterial({ color: 0xffffff })
     );
     penBoxLine.rotation.x = -Math.PI / 2;
     penBoxLine.position.set(0, 0.02, -4.5);
     scene.add(penBoxLine);
 
-    // Goal Post Structure (white with black accent joints as in screenshot)
-    const goalMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-    const jointMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+    // Penalty Spot Dot
+    const spot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.12, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    spot.rotation.x = -Math.PI / 2;
+    spot.position.set(0, 0.025, -2.5);
+    scene.add(spot);
 
-    const postGeo = new THREE.CylinderGeometry(0.09, 0.09, 2.7, 16);
+    // 5. Goal Post Structure (white with black accent joints as in screenshot)
+    const goalMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+    const jointMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+
+    const postGeo = new THREE.CylinderGeometry(0.1, 0.1, 2.7, 16);
     const postLeft = new THREE.Mesh(postGeo, goalMat);
     postLeft.position.set(-2.8, 1.35, -10);
     scene.add(postLeft);
@@ -169,14 +273,14 @@ export default function PenaltyScreen() {
     postRight.position.set(2.8, 1.35, -10);
     scene.add(postRight);
 
-    const crossbarGeo = new THREE.CylinderGeometry(0.09, 0.09, 5.78, 16);
+    const crossbarGeo = new THREE.CylinderGeometry(0.1, 0.1, 5.8, 16);
     const crossbar = new THREE.Mesh(crossbarGeo, goalMat);
     crossbar.rotation.z = Math.PI / 2;
     crossbar.position.set(0, 2.7, -10);
     scene.add(crossbar);
 
-    // Corner connector brackets
-    const bracketGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.35, 16);
+    // Black connector elbow brackets
+    const bracketGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.38, 16);
     const bracketL = new THREE.Mesh(bracketGeo, jointMat);
     bracketL.position.set(-2.8, 2.65, -10);
     scene.add(bracketL);
@@ -184,63 +288,79 @@ export default function PenaltyScreen() {
     bracketR.position.set(2.8, 2.65, -10);
     scene.add(bracketR);
 
-    // Goal Bottom Base Frame
-    const baseL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.0, 16), goalMat);
+    // Bottom Base Frame
+    const baseL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 16), goalMat);
     baseL.rotation.x = Math.PI / 2;
-    baseL.position.set(-2.8, 0.08, -11);
+    baseL.position.set(-2.8, 0.09, -11.1);
     scene.add(baseL);
-    const baseR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.0, 16), goalMat);
+
+    const baseR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 16), goalMat);
     baseR.rotation.x = Math.PI / 2;
-    baseR.position.set(2.8, 0.08, -11);
+    baseR.position.set(2.8, 0.09, -11.1);
     scene.add(baseR);
 
-    // Net
-    const netGeo = new THREE.BoxGeometry(5.6, 2.6, 2.0);
-    const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.35 });
+    // Goal Net
+    const netGeo = new THREE.BoxGeometry(5.6, 2.6, 2.2);
+    const netMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.45,
+    });
     const net = new THREE.Mesh(netGeo, netMat);
-    net.position.set(0, 1.35, -11.0);
+    net.position.set(0, 1.35, -11.1);
     scene.add(net);
 
-    // Goalkeeper
+    // 6. Goalkeeper (Avatar in keffiyeh headdress, sparkly jacket, white pants)
     const keeperGroup = new THREE.Group();
-    const headMat = new THREE.MeshStandardMaterial({ color: 0x8d5524 });
-    const keeperJacketMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.4, roughness: 0.3 }); // sleek jacket
-    const keeperPantsMat = new THREE.MeshStandardMaterial({ color: 0xffffff }); // white pants
-    const keffiyehMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x935b34, roughness: 0.6 });
+    const keeperJacketMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      metalness: 0.35,
+      roughness: 0.3,
+    });
+    const whitePantsMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+    const keffiyehMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
+    const agalMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
 
-    // Torso (Jacket)
-    const keeperBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 1.15, 16), keeperJacketMat);
+    // Torso
+    const keeperBody = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.26, 1.15, 16), keeperJacketMat);
     keeperBody.position.y = 1.25;
     keeperGroup.add(keeperBody);
 
     // Head
-    const keeperHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), headMat);
+    const keeperHead = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 16), skinMat);
     keeperHead.position.y = 2.05;
     keeperGroup.add(keeperHead);
 
-    // Headwear (Keffiyeh / Shemagh inspired styling as in reference)
-    const headdress = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.35, 16), keffiyehMat);
+    // Keffiyeh / Shemagh
+    const headdress = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.38, 0.45, 16), keffiyehMat);
     headdress.position.y = 2.22;
     keeperGroup.add(headdress);
 
-    // White Pants & Legs
-    const legGeoL = new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12);
-    const legL = new THREE.Mesh(legGeoL, keeperPantsMat);
+    // Black Agal band
+    const agal = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.03, 8, 24), agalMat);
+    agal.rotation.x = Math.PI / 2;
+    agal.position.y = 2.3;
+    keeperGroup.add(agal);
+
+    // White Pants
+    const legGeo = new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12);
+    const legL = new THREE.Mesh(legGeo, whitePantsMat);
     legL.position.set(-0.2, 0.45, 0);
     keeperGroup.add(legL);
 
-    const legR = new THREE.Mesh(legGeoL, keeperPantsMat);
+    const legR = new THREE.Mesh(legGeo, whitePantsMat);
     legR.position.set(0.2, 0.45, 0);
     keeperGroup.add(legR);
 
-    // Arms in ready goalkeeper pose
-    const armMat = keeperJacketMat;
-    const keeperArmL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.7, 12), armMat);
+    // Arms in athletic diving ready pose
+    const keeperArmL = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.72, 12), keeperJacketMat);
     keeperArmL.rotation.z = Math.PI / 3;
     keeperArmL.position.set(-0.55, 1.45, 0);
     keeperGroup.add(keeperArmL);
 
-    const keeperArmR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.7, 12), armMat);
+    const keeperArmR = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.72, 12), keeperJacketMat);
     keeperArmR.rotation.z = -Math.PI / 3;
     keeperArmR.position.set(0.55, 1.45, 0);
     keeperGroup.add(keeperArmR);
@@ -249,48 +369,36 @@ export default function PenaltyScreen() {
     scene.add(keeperGroup);
     keeperRef.current = keeperGroup;
 
-    // Classic Soccer Ball (with black hexagonal patches)
-    const ballGeo = new THREE.SphereGeometry(0.25, 24, 24);
-    const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-    const ball = new THREE.Mesh(ballGeo, ballMat);
-    // Black patches
-    for (let i = 0; i < 6; i++) {
-      const patch = new THREE.Mesh(
-        new THREE.CircleGeometry(0.07, 6),
-        new THREE.MeshBasicMaterial({ color: 0x111827 })
-      );
-      const angle = (i * Math.PI) / 3;
-      patch.position.set(Math.cos(angle) * 0.22, Math.sin(angle) * 0.22, 0.12);
-      ball.add(patch);
-    }
-    ball.position.set(0, 0.25, -2.5);
+    // 7. Soccer Ball
+    const ball = createSoccerBall();
+    ball.position.set(0, 0.28, -2.5);
     scene.add(ball);
     ballRef.current = ball;
 
-    // Kicker (Avatar viewed from behind in blue jeans & dark beanie as in screenshot)
+    // 8. Kicker (Avatar viewed from behind in blue jeans & dark beanie as in screenshot)
     const kickerGroup = new THREE.Group();
-    const kickerBeanieMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-    const kickerJacket = new THREE.MeshStandardMaterial({ color: 0x334155 });
-    const jeansMat = new THREE.MeshStandardMaterial({ color: 0x60a5fa });
+    const kickerJacket = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+    const jeansMat = new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.6 });
+    const beanieMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
 
-    const kickerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 1.15, 12), kickerJacket);
+    const kickerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.26, 1.15, 14), kickerJacket);
     kickerBody.position.y = 1.15;
     kickerGroup.add(kickerBody);
 
-    const kickerHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), headMat);
+    const kickerHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), skinMat);
     kickerHead.position.y = 1.95;
     kickerGroup.add(kickerHead);
 
-    const beanie = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.3, 16), kickerBeanieMat);
+    const beanie = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.32, 16), beanieMat);
     beanie.position.y = 2.15;
     kickerGroup.add(beanie);
 
-    // Jeans
-    const kLegL = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12), jeansMat);
+    // Blue Jeans
+    const kLegL = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.85, 12), jeansMat);
     kLegL.position.set(-0.18, 0.45, 0);
     kickerGroup.add(kLegL);
 
-    const kLegR = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.85, 12), jeansMat);
+    const kLegR = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.14, 0.85, 12), jeansMat);
     kLegR.position.set(0.18, 0.45, 0);
     kickerGroup.add(kLegR);
 
@@ -315,18 +423,20 @@ export default function PenaltyScreen() {
     camera.lookAt(0, 1.45, -9.8);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x1e3a8a, 0.9);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x1e3a8a, 0.95);
     scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
-    dir.position.set(6, 14, 6);
-    scene.add(dir);
+
+    const sun = new THREE.DirectionalLight(0xfffbeb, 1.8);
+    sun.position.set(8, 16, 8);
+    scene.add(sun);
 
     buildScene(scene);
 
@@ -359,12 +469,16 @@ export default function PenaltyScreen() {
     setAnimating(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // AI choice
     const directions: Direction[] = ['left', 'center', 'right'];
     const aiChoice = directions[Math.floor(Math.random() * directions.length)];
 
     const ballTargetX = direction === 'left' ? -1.8 : direction === 'right' ? 1.8 : 0;
-    const keeperTargetX = (role === 'kicker' ? aiChoice : direction) === 'left' ? -1.8 : (role === 'kicker' ? aiChoice : direction) === 'right' ? 1.8 : 0;
+    const keeperTargetX =
+      (role === 'kicker' ? aiChoice : direction) === 'left'
+        ? -1.8
+        : (role === 'kicker' ? aiChoice : direction) === 'right'
+        ? 1.8
+        : 0;
 
     const isGoal = role === 'kicker' ? direction !== aiChoice : aiChoice !== direction;
 
@@ -374,7 +488,7 @@ export default function PenaltyScreen() {
     if (!ball || !keeper) return;
 
     const startBallPos = ball.position.clone();
-    const targetBallPos = new THREE.Vector3(ballTargetX, 1.2, -10.0);
+    const targetBallPos = new THREE.Vector3(ballTargetX, 1.3, -10.0);
     const startKeeperPos = keeper.position.clone();
     const targetKeeperPos = new THREE.Vector3(keeperTargetX, keeper.position.y, keeper.position.z);
 
@@ -385,27 +499,26 @@ export default function PenaltyScreen() {
       const now = performance.now();
       const p = Math.min(1, (now - startTime) / duration);
 
-      // Move kicker run-up
+      // Kicker run-up
       if (kicker && p < 0.3) {
-        kicker.position.z = -1.8 - p * 1.5;
+        kicker.position.z = -1.8 - p * 1.6;
       }
 
       // Ball path
       const curPos = new THREE.Vector3().lerpVectors(startBallPos, targetBallPos, p);
-      curPos.y += Math.sin(p * Math.PI) * 1.2;
+      curPos.y += Math.sin(p * Math.PI) * 1.3;
       ball.position.copy(curPos);
-      ball.rotation.x += 0.15;
+      ball.rotation.x += 0.2;
 
       // Keeper dive
-      keeper.position.x = THREE.MathUtils.lerp(startKeeperPos.x, targetKeeperPos.x, p * 1.2);
+      keeper.position.x = THREE.MathUtils.lerp(startKeeperPos.x, targetKeeperPos.x, p * 1.25);
       if (keeperTargetX !== 0) {
-        keeper.rotation.z = THREE.MathUtils.lerp(0, keeperTargetX > 0 ? -0.5 : 0.5, p);
+        keeper.rotation.z = THREE.MathUtils.lerp(0, keeperTargetX > 0 ? -0.55 : 0.55, p);
       }
 
       if (p < 1) {
         requestAnimationFrame(animateShot);
       } else {
-        // Outcome
         if (isGoal) {
           if (role === 'kicker') {
             playerScoreRef.current += 1;
@@ -421,34 +534,31 @@ export default function PenaltyScreen() {
           if (role === 'kicker') {
             setFeedback('SAVED BY KEEPER! 🧤');
           } else {
-            playerScoreRef.current += 1; // bonus for great save
+            playerScoreRef.current += 1;
             setPlayerScore(playerScoreRef.current);
             setFeedback('WHAT A SAVE! 🧤🛑');
           }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         }
 
-        // Live match progress
         if (matchState.status === 'playing' && matchState.roomId) {
           sendProgress(roundRef.current, playerScoreRef.current, Date.now() - startTimeRef.current);
         }
 
-        // Reset positions & switch turn
         setTimeout(() => {
-          ball.position.set(0, 0.24, -2.5);
+          ball.position.set(0, 0.28, -2.5);
           keeper.position.set(0, 0, -9.8);
           keeper.rotation.set(0, 0, 0);
-          if (kicker) kicker.position.set(0.6, 0, -1.8);
+          if (kicker) kicker.position.set(0.5, 0, -1.8);
           setFeedback(null);
 
           const nextRound = roundRef.current + 1;
           roundRef.current = nextRound;
           setCurrentRound(Math.min(TOTAL_ROUNDS, nextRound));
-          setRole(r => (r === 'kicker' ? 'keeper' : 'kicker'));
+          setRole((r) => (r === 'kicker' ? 'keeper' : 'kicker'));
           setAnimating(false);
 
           if (nextRound > TOTAL_ROUNDS) {
-            // End Match
             const totalTime = Date.now() - startTimeRef.current;
             const pScore = playerScoreRef.current;
             const oScore = oppScoreRef.current;
@@ -471,81 +581,39 @@ export default function PenaltyScreen() {
   };
 
   const s = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0c1427' },
-    header: {
-      paddingTop: topPad + 12,
-      paddingHorizontal: 20,
-      paddingBottom: 12,
+    container: { flex: 1, backgroundColor: '#38bdf8' },
+    topBar: {
+      paddingTop: topPad + 4,
+      paddingHorizontal: 16,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      zIndex: 10,
+      zIndex: 20,
     },
-    title: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
-    scorePill: {
-      backgroundColor: 'rgba(255,255,255,0.1)',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.2)',
-    },
-    scoreVal: { fontSize: 16, fontWeight: '700', color: '#38BDF8', fontFamily: 'Inter_700Bold' },
-    hud: {
-      position: 'absolute',
-      top: topPad + 60,
-      left: 16,
-      right: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      zIndex: 10,
-      pointerEvents: 'none',
-    },
-    hudBox: {
-      backgroundColor: 'rgba(0,0,0,0.7)',
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 12,
+    topIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: 'rgba(0,0,0,0.4)',
       alignItems: 'center',
+      justifyContent: 'center',
     },
-    hudLabel: { fontSize: 10, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_500Medium' },
-    hudVal: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
     canvasWrapper: { flex: 1, width: '100%' },
     feedback: {
       position: 'absolute',
-      bottom: 150,
+      bottom: 180,
       alignSelf: 'center',
-      backgroundColor: '#3B82F6',
-      paddingHorizontal: 24,
+      backgroundColor: '#2563eb',
+      paddingHorizontal: 26,
       paddingVertical: 12,
       borderRadius: 28,
-      zIndex: 12,
+      zIndex: 25,
+      shadowColor: '#000',
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+      elevation: 8,
     },
-    feedbackText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-    controls: {
-      paddingBottom: insets.bottom + 16,
-      paddingHorizontal: 20,
-      alignItems: 'center',
-      gap: 12,
-      zIndex: 10,
-    },
-    actionRow: {
-      flexDirection: 'row',
-      gap: 12,
-      width: '100%',
-      justifyContent: 'center',
-    },
-    btn: {
-      flex: 1,
-      maxWidth: 110,
-      backgroundColor: '#2563EB',
-      paddingVertical: 14,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    btnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', fontFamily: 'Inter_700Bold' },
-    instruction: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_500Medium' },
+    feedbackText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', fontFamily: 'Inter_700Bold' },
   });
 
   return (
@@ -565,32 +633,50 @@ export default function PenaltyScreen() {
         onPlayBot={switchToBotMatch}
       />
 
-      {/* Header */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      {/* Top Header Icons matching Snapchat AR camera interface */}
+      <View style={s.topBar}>
+        <Pressable onPress={() => router.back()} style={s.topIconBtn}>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
         </Pressable>
-        <Text style={s.title}>⚽ Penalty 3D</Text>
-        <View style={s.scorePill}>
-          <Text style={s.scoreVal}>{playerScore} - {opponentScore}</Text>
+
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={s.topIconBtn}>
+            <Ionicons name="musical-notes" size={20} color="#FFFFFF" />
+          </View>
+          <View style={s.topIconBtn}>
+            <Ionicons name="chevron-down" size={20} color="#FFFFFF" />
+          </View>
         </View>
       </View>
 
-      {/* HUD */}
-      <View style={s.hud}>
-        <View style={s.hudBox}>
-          <Text style={s.hudLabel}>ROUND</Text>
-          <Text style={s.hudVal}>{currentRound} / {TOTAL_ROUNDS}</Text>
-        </View>
-        <View style={s.hudBox}>
-          <Text style={s.hudLabel}>ROLE</Text>
-          <Text style={[s.hudVal, { color: role === 'kicker' ? '#38BDF8' : '#F59E0B' }]}>
-            {role.toUpperCase()}
-          </Text>
-        </View>
+      {/* Top Score Pill */}
+      <View
+        style={{
+          position: 'absolute',
+          top: topPad + 45,
+          alignSelf: 'center',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          paddingHorizontal: 20,
+          paddingVertical: 8,
+          borderRadius: 20,
+          borderWidth: 1.5,
+          borderColor: 'rgba(255,255,255,0.3)',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          zIndex: 15,
+        }}
+      >
+        <Text style={{ fontSize: 13, fontWeight: '800', color: '#38bdf8' }}>
+          ROUND {currentRound}/{TOTAL_ROUNDS}
+        </Text>
+        <View style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.3)' }} />
+        <Text style={{ fontSize: 16, fontWeight: '900', color: '#FFFFFF' }}>
+          {playerScore} - {opponentScore}
+        </Text>
       </View>
 
-      {/* 3D View */}
+      {/* 3D WebGL Canvas Layer */}
       <View style={s.canvasWrapper}>
         <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
       </View>
@@ -602,72 +688,130 @@ export default function PenaltyScreen() {
         </View>
       )}
 
-      {/* Controls styled as circular arcade triggers matching Snapchat camera HUD */}
-      <View style={s.controls}>
-        <Text style={s.instruction}>
-          {role === 'kicker' ? '⚽ TAP DIRECTION TO STRIKE:' : '🧤 TAP DIRECTION TO DIVE:'}
+      {/* Bottom Lens Controls matching Snapchat AR HUD */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 8,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          zIndex: 20,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: '800',
+            color: '#FFFFFF',
+            textShadowColor: 'rgba(0,0,0,0.8)',
+            textShadowRadius: 4,
+            marginBottom: 10,
+            letterSpacing: 1,
+          }}
+        >
+          {role === 'kicker' ? '⚽ CHOOSE SHOT DIRECTION:' : '🧤 CHOOSE DIVE DIRECTION:'}
         </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+
+        {/* 3 Lens Direction Buttons */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <Pressable
-            style={({ pressed }) => [{
-              width: 68,
-              height: 68,
-              borderRadius: 34,
-              backgroundColor: '#1e293b',
-              borderWidth: 3,
-              borderColor: '#38bdf8',
-              alignItems: 'center',
-              justifyContent: 'center',
-              elevation: 4,
-            }, pressed && { transform: [{ scale: 0.94 }] }]}
+            style={({ pressed }) => [
+              {
+                width: 66,
+                height: 66,
+                borderRadius: 33,
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                borderWidth: 3,
+                borderColor: '#38bdf8',
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 6,
+              },
+              pressed && { transform: [{ scale: 0.94 }] },
+            ]}
             onPress={() => handleAction('left')}
             disabled={animating}
           >
-            <Text style={{ fontSize: 26 }}>👈</Text>
-            <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', marginTop: 2 }}>LEFT</Text>
+            <Text style={{ fontSize: 24 }}>👈</Text>
+            <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>LEFT</Text>
           </Pressable>
 
-          {/* Central primary trigger */}
+          {/* Central Camera Shutter Style Trigger */}
           <Pressable
-            style={({ pressed }) => [{
-              width: 82,
-              height: 82,
-              borderRadius: 41,
-              backgroundColor: '#2563eb',
-              borderWidth: 4,
-              borderColor: '#FFFFFF',
-              alignItems: 'center',
-              justifyContent: 'center',
-              elevation: 8,
-              shadowColor: '#2563eb',
-              shadowOpacity: 0.5,
-              shadowRadius: 10,
-            }, pressed && { transform: [{ scale: 0.94 }] }]}
+            style={({ pressed }) => [
+              {
+                width: 82,
+                height: 82,
+                borderRadius: 41,
+                borderWidth: 4,
+                borderColor: '#FFFFFF',
+                backgroundColor: 'rgba(255,255,255,0.25)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 10,
+                shadowColor: '#000',
+                shadowOpacity: 0.6,
+                shadowRadius: 10,
+              },
+              pressed && { transform: [{ scale: 0.94 }] },
+            ]}
             onPress={() => handleAction('center')}
             disabled={animating}
           >
-            <Text style={{ fontSize: 32 }}>⚽</Text>
-            <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFFFFF', marginTop: 1 }}>CENTER</Text>
+            <View
+              style={{
+                width: 62,
+                height: 62,
+                borderRadius: 31,
+                backgroundColor: '#2563eb',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 28 }}>⚽</Text>
+              <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>CENTER</Text>
+            </View>
           </Pressable>
 
           <Pressable
-            style={({ pressed }) => [{
-              width: 68,
-              height: 68,
-              borderRadius: 34,
-              backgroundColor: '#1e293b',
-              borderWidth: 3,
-              borderColor: '#38bdf8',
-              alignItems: 'center',
-              justifyContent: 'center',
-              elevation: 4,
-            }, pressed && { transform: [{ scale: 0.94 }] }]}
+            style={({ pressed }) => [
+              {
+                width: 66,
+                height: 66,
+                borderRadius: 33,
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                borderWidth: 3,
+                borderColor: '#38bdf8',
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 6,
+              },
+              pressed && { transform: [{ scale: 0.94 }] },
+            ]}
             onPress={() => handleAction('right')}
             disabled={animating}
           >
-            <Text style={{ fontSize: 26 }}>👉</Text>
-            <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', marginTop: 2 }}>RIGHT</Text>
+            <Text style={{ fontSize: 24 }}>👉</Text>
+            <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>RIGHT</Text>
           </Pressable>
+        </View>
+
+        {/* Category Carousel Tabs */}
+        <View style={{ flexDirection: 'row', gap: 18, alignItems: 'center', marginTop: 12 }}>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Favourites</Text>
+          <View
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.25)',
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 14,
+            }}
+          >
+            <Text style={{ fontSize: 13, color: '#FFFFFF', fontWeight: '800' }}>For you</Text>
+          </View>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Games</Text>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Appearance</Text>
         </View>
       </View>
     </View>
