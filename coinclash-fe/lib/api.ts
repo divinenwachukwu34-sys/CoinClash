@@ -298,6 +298,7 @@ export interface User {
   status?: string;
   isFlagged?: boolean;
   isAdmin?: boolean;
+  role?: 'player' | 'admin' | 'owner';
   referralCode?: string;
   reservedBankName?: string;
   reservedAccountNumber?: string;
